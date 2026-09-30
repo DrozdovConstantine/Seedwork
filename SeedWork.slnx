@@ -1,0 +1,25 @@
+<Solution>
+  <Folder Name="/Plans/">
+    <File Path="Plans\PLAN-APPLICATION.md" />
+    <File Path="Plans\PLAN-DOMAIN.md" />
+    <File Path="Plans\PLAN-FILE-STORAGE.md" />
+    <File Path="Plans\PLAN-MESSAGING.md" />
+    <File Path="Plans\PLAN-OBSERVABILITY.md" />
+    <File Path="Plans\PLAN-PERSISTENCE-EFCORE.md" />
+  </Folder>
+  <Folder Name="/samples/" />
+  <Folder Name="/samples/Messaging/">
+    <Project Path="samples/Messaging/Consumer/Consumer.csproj" />
+    <Project Path="samples/Messaging/Publisher/Publisher.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/SeedWork.Domain/SeedWork.Domain.csproj" />
+    <Project Path="src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj" />
+    <Project Path="src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj" />
+    <Project Path="src/SeedWork.Messaging/SeedWork.Messaging.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SeedWork.Domain.Tests/SeedWork.Domain.Tests.csproj" />
+    <Project Path="tests/SeedWork.Messaging.Tests/SeedWork.Messaging.Tests.csproj" />
+  </Folder>
+</Solution>
