@@ -1,17 +1,16 @@
 using System.Reflection;
 using System.Diagnostics.CodeAnalysis;
 using Confluent.Kafka;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace SeedWork.Messaging.Kafka;
 
-/// <summary>Настройки одного подключения Kafka; секреты и параметры SSL/SASL предоставляет приложение.</summary>
+/// <summary>Настройки одного подключения Kafka.</summary>
 public sealed class KafkaOptions
 {
-    /// <summary>Общие параметры клиентов; адаптер создаёт независимые копии для admin, producer и consumer.</summary>
-    public ClientConfig Client { get; } = new();
+    /// <summary>Адрес брокеров и параметры защиты; обязательны для подключения.</summary>
+    public KafkaConnectionSettings? Connection { get; set; }
     /// <summary>Проверка существующих topics либо создание недостающих при запуске.</summary>
     public TopologyMode Topology { get; set; } = TopologyMode.ValidateOnly;
 }
@@ -24,6 +23,7 @@ internal sealed record KafkaEndpoint(string Name, string Topic, string Group,
 public sealed class KafkaBuilder
 {
     internal KafkaOptions Options { get; } = new();
+    internal Dictionary<string, string>? ClientProperties { get; private set; }
     internal Dictionary<string, KafkaTopic> Topics { get; } = new(StringComparer.Ordinal);
     internal List<KafkaEndpoint> Endpoints { get; } = [];
     private readonly List<KafkaConsumerOptions> _consumerTopology = [];
@@ -75,10 +75,9 @@ public sealed class KafkaBuilder
     /// <remarks>Конфигурация переопределяет атрибут. Ненастроенные консумеры пропускаются; топология берётся из итоговых настроек.</remarks>
     [RequiresUnreferencedCode("Consumer scanning requires untrimmed consumer and configuration types. Use explicit Consume registration when trimming.")]
     [RequiresDynamicCode("Consumer scanning closes generic registration methods at runtime. Use explicit Consume registration for NativeAOT.")]
-    public KafkaBuilder AddConsumersFromAssembly(Assembly assembly, IConfiguration? configuration = null)
+    public KafkaBuilder AddConsumersFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        configuration ??= new ConfigurationBuilder().Build();
         var registrations = ConsumerDiscovery.Find<KafkaConsumerAttribute>(assembly,
             typeof(KafkaConsumerConfiguration<,>), a => a.MessageType);
         foreach (var registration in registrations)
@@ -102,7 +101,7 @@ public sealed class KafkaBuilder
                 options.Retry.Handle.UnionWith(attribute.Handle ?? throw new ArgumentException("Handle cannot be null."));
                 options.Retry.Ignore.UnionWith(attribute.Ignore ?? throw new ArgumentException("Ignore cannot be null."));
             }
-            ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options, configuration);
+            ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options);
             if (string.IsNullOrWhiteSpace(options.Endpoint) || string.IsNullOrWhiteSpace(options.Topic) || string.IsNullOrWhiteSpace(options.Group))
                 throw new InvalidOperationException($"Incomplete Kafka configuration for consumer '{pair.Consumer.FullName}', message '{pair.Message.FullName}'.");
             if (options.Retry is null)
@@ -130,7 +129,8 @@ public sealed class KafkaBuilder
             Topic(group.Key, partitions[0], replicas[0]);
         }
 
-        if (string.IsNullOrWhiteSpace(Options.Client.BootstrapServers)) throw new ArgumentException("Kafka BootstrapServers is required.");
+        ClientProperties = (Options.Connection ?? throw new ArgumentException("Kafka connection settings are required."))
+            .CreateClientConfig().ToDictionary(x => x.Key, x => x.Value);
         if (_routeTopics.Concat(Endpoints.Select(e => e.Topic)).Any(t => !Topics.ContainsKey(t)))
             throw new ArgumentException("Declare every topic with Topic(...).");
         if (Endpoints.GroupBy(e => (e.Topic, e.Group)).Any(g => g.Count() > 1))

@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.ExceptionServices;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SeedWork.Messaging.Kafka;
 using SeedWork.Messaging.RabbitMQ;
@@ -33,20 +32,16 @@ public sealed class ConsumerScanningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ConfigurationOnly_ReceivesApplicationConfiguration(bool kafka)
+    public void ConfigurationOnly_UsesConstantValues(bool kafka)
     {
         var fixture = new Fixture();
         var consumer = fixture.Consumer(typeof(NoopConsumer));
-        var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Queue"] = "orders" }).Build();
-        IConfiguration? received = null;
-        fixture.Configuration(kafka, consumer, typeof(Message), (options, configuration) =>
+        fixture.Configuration(kafka, consumer, typeof(Message), options =>
         {
-            received = configuration;
-            if (options is RabbitMqConsumerOptions rabbit) { rabbit.Queue = configuration["Queue"]; rabbit.Exchange = "events"; }
-            if (options is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = configuration["Queue"]; k.Partitions = 2; k.ReplicationFactor = 1; }
+            if (options is RabbitMqConsumerOptions rabbit) { rabbit.Queue = "orders"; rabbit.Exchange = "events"; }
+            if (options is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = "orders"; k.Partitions = 2; k.ReplicationFactor = 1; }
         }, inherit: true);
-        Assert.Contains(Register(kafka, fixture, settings, declareTopology: false), s => s.ServiceType == consumer);
-        Assert.Same(settings, received);
+        Assert.Contains(Register(kafka, fixture, declareTopology: false), s => s.ServiceType == consumer);
     }
 
     [Theory]
@@ -56,9 +51,8 @@ public sealed class ConsumerScanningTests
     {
         var fixture = new Fixture();
         var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        fixture.Configuration(kafka, consumer, typeof(Message), (options, configuration) =>
+        fixture.Configuration(kafka, consumer, typeof(Message), options =>
         {
-            Assert.Null(configuration["missing"]);
             if (options is RabbitMqConsumerOptions r)
             {
                 Assert.Equal("events", r.Exchange);
@@ -140,8 +134,8 @@ public sealed class ConsumerScanningTests
     {
         var fixture = new Fixture();
         var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        fixture.Configuration(kafka, consumer, typeof(Message), (_, _) => { });
-        fixture.Configuration(kafka, consumer, typeof(Message), (_, _) => { });
+        fixture.Configuration(kafka, consumer, typeof(Message), _ => { });
+        fixture.Configuration(kafka, consumer, typeof(Message), _ => { });
         Assert.Contains("Duplicate configurations", Assert.Throws<InvalidOperationException>(() => Register(kafka, fixture)).Message);
     }
 
@@ -167,7 +161,7 @@ public sealed class ConsumerScanningTests
         Assert.Contains("Incomplete", Assert.Throws<InvalidOperationException>(() => Register(kafka, incomplete)).Message);
         var invalidRetry = new Fixture();
         var consumer = invalidRetry.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        invalidRetry.Configuration(kafka, consumer, typeof(Message), (o, _) =>
+        invalidRetry.Configuration(kafka, consumer, typeof(Message), o =>
         {
             if (o is KafkaConsumerOptions k) k.Retry.MaxRetries = -1;
             if (o is RabbitMqConsumerOptions r) r.Retry.MaxRetries = -1;
@@ -182,7 +176,7 @@ public sealed class ConsumerScanningTests
     {
         var fixture = new Fixture();
         var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        fixture.Configuration(kafka, consumer, typeof(Message), (_, _) => { }, publicConstructor: false);
+        fixture.Configuration(kafka, consumer, typeof(Message), _ => { }, publicConstructor: false);
         Assert.Contains("public parameterless constructor", Assert.Throws<InvalidOperationException>(() => Register(kafka, fixture)).Message);
     }
 
@@ -194,7 +188,7 @@ public sealed class ConsumerScanningTests
         var fixture = new Fixture();
         var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
         var original = new FormatException("configuration failure");
-        fixture.Configuration(kafka, consumer, typeof(Message), (_, _) => throw original);
+        fixture.Configuration(kafka, consumer, typeof(Message), _ => throw original);
         Assert.Same(original, Assert.Throws<FormatException>(() => Register(kafka, fixture)));
     }
 
@@ -239,7 +233,7 @@ public sealed class ConsumerScanningTests
                 MaxRetries = 2, IntervalMilliseconds = 0, MaxIntervalMilliseconds = 15, Exponential = true,
                 Handle = [typeof(ArgumentException)], Ignore = [typeof(InvalidOperationException)] };
         var consumer = fixture.Consumer(typeof(FailingConsumer), attribute);
-        if (configure) fixture.Configuration(kafka, consumer, typeof(Message), (o, _) =>
+        if (configure) fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
             var retry = o is KafkaConsumerOptions k ? k.Retry : ((RabbitMqConsumerOptions)o).Retry;
             Assert.Equal(2, retry.MaxRetries);
@@ -256,8 +250,8 @@ public sealed class ConsumerScanningTests
         services.AddLogging();
         services.AddSeedWorkMessaging(b =>
         {
-            if (kafka) b.AddKafka("k", k => { k.Configure(o => o.Client.BootstrapServers = "unused:9092"); Scan(k, fixture.Marker); captured = k; });
-            else b.AddRabbitMq("r", r => { r.Configure(o => o.Topology = TopologyMode.CreateMissing); Scan(r, fixture.Marker); captured = r; });
+            if (kafka) b.AddKafka("k", k => { k.Configure(o => o.Connection = KafkaConnection()); Scan(k, fixture.Marker); captured = k; });
+            else b.AddRabbitMq("r", r => { r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }); Scan(r, fixture.Marker); captured = r; });
         });
         var endpoints = (System.Collections.IEnumerable)captured!.GetType().GetProperty("Endpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!;
         var endpoint = Assert.Single(endpoints.Cast<object>());
@@ -289,14 +283,14 @@ public sealed class ConsumerScanningTests
         {
             if (kafka) b.AddKafka("k", k =>
             {
-                k.Configure(o => o.Client.BootstrapServers = "unused:9092");
+                k.Configure(o => o.Connection = KafkaConnection());
                 if (manualFirst) k.Topic("events", conflict ? 3 : 2, 1);
                 Scan(k, fixture.Marker);
                 if (!manualFirst) k.Topic("events", conflict ? 3 : 2, 1);
             });
             else b.AddRabbitMq("r", r =>
             {
-                r.Configure(o => o.Topology = TopologyMode.CreateMissing);
+                r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; });
                 if (manualFirst) r.Exchange("events", conflict ? RabbitMqExchangeType.Fanout : RabbitMqExchangeType.Direct);
                 Scan(r, fixture.Marker);
                 if (!manualFirst) r.Exchange("events", conflict ? RabbitMqExchangeType.Fanout : RabbitMqExchangeType.Direct);
@@ -345,7 +339,7 @@ public sealed class ConsumerScanningTests
         var consumer = fixture.Consumer(typeof(NoopConsumer), kafka
             ? new KafkaConsumerAttribute(typeof(Message)) { Endpoint = "old", Topic = "old", Group = "old", Partitions = 1, ReplicationFactor = 1 }
             : new RabbitMqConsumerAttribute(typeof(Message)) { Endpoint = "old", Exchange = "old", ExchangeType = RabbitMqExchangeType.Fanout, Queue = "old", BindingKey = "old", ErrorQueue = "old_error" });
-        fixture.Configuration(kafka, consumer, typeof(Message), (o, _) =>
+        fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
             RetryOptions retry;
             if (o is KafkaConsumerOptions k)
@@ -366,8 +360,8 @@ public sealed class ConsumerScanningTests
         object? captured = null;
         new ServiceCollection().AddSeedWorkMessaging(b =>
         {
-            if (kafka) b.AddKafka("k", k => { k.Configure(o => o.Client.BootstrapServers = "unused:9092"); Scan(k, fixture.Marker); captured = k; });
-            else b.AddRabbitMq("r", r => { r.Configure(o => o.Topology = TopologyMode.CreateMissing); Scan(r, fixture.Marker); captured = r; });
+            if (kafka) b.AddKafka("k", k => { k.Configure(o => o.Connection = KafkaConnection()); Scan(k, fixture.Marker); captured = k; });
+            else b.AddRabbitMq("r", r => { r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }); Scan(r, fixture.Marker); captured = r; });
         });
         object Property(object target, string name) => target.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(target)!;
         var endpoint = Assert.Single(((System.Collections.IEnumerable)Property(captured!, "Endpoints")).Cast<object>());
@@ -419,7 +413,7 @@ public sealed class ConsumerScanningTests
             if (attribute is RabbitMqConsumerAttribute r) { r.MaxRetries = 5; r.Ignore = [typeof(FormatException)]; }
         }
         var consumer = fixture.Consumer(typeof(FailingConsumer), mode is "manual" or "configuration" ? [] : [attribute]);
-        if (mode is "configuration" or "replace") fixture.Configuration(kafka, consumer, typeof(Message), (o, _) =>
+        if (mode is "configuration" or "replace") fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
             if (o is KafkaConsumerOptions k)
             {
@@ -477,7 +471,7 @@ public sealed class ConsumerScanningTests
     {
         var fixture = new Fixture();
         var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        fixture.Configuration(kafka, consumer, typeof(Message), (o, _) =>
+        fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
             if (o is KafkaConsumerOptions k) k.Retry = null!;
             else ((RabbitMqConsumerOptions)o).Retry = null!;
@@ -499,7 +493,7 @@ public sealed class ConsumerScanningTests
         RabbitMqBuilder? captured = null;
         new ServiceCollection().AddSeedWorkMessaging(b => b.AddRabbitMq("r", r =>
         {
-            r.Configure(o => o.Topology = TopologyMode.CreateMissing);
+            r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; });
             Scan(r, fixture.Marker); captured = r;
         }));
         var exchanges = (Dictionary<string, string>)typeof(RabbitMqBuilder).GetProperty("Exchanges", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!;
@@ -515,7 +509,7 @@ public sealed class ConsumerScanningTests
         fixture.Consumer(typeof(NoopConsumer), Attribute(false));
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddSeedWorkMessaging(b => b.AddRabbitMq("r", r =>
         {
-            r.Configure(o => o.Topology = TopologyMode.CreateMissing);
+            r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; });
             if (manualFirst) r.Exchange("events", RabbitMqExchangeType.Direct);
             Scan(r, fixture.Marker);
             if (!manualFirst) r.Exchange("events", RabbitMqExchangeType.Direct);
@@ -532,33 +526,35 @@ public sealed class ConsumerScanningTests
             { Queue = "orders", Exchange = "events", ExchangeType = (RabbitMqExchangeType)999 });
         Assert.Throws<ArgumentOutOfRangeException>(() => new ServiceCollection().AddSeedWorkMessaging(b => b.AddRabbitMq("r", r =>
         {
-            r.Configure(o => o.Topology = TopologyMode.CreateMissing);
+            r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; });
             if (scan) Scan(r, fixture.Marker);
             else r.Exchange("events", (RabbitMqExchangeType)999);
         })));
     }
 
-    private static ServiceCollection Register(bool kafka, Fixture fixture, IConfiguration? configuration = null, string destination = "events", bool declareTopology = true)
+    private static ServiceCollection Register(bool kafka, Fixture fixture, string destination = "events", bool declareTopology = true)
     {
         var services = new ServiceCollection();
         services.AddSeedWorkMessaging(b =>
         {
-            if (kafka) b.AddKafka("kafka", k => { k.Configure(o => o.Client.BootstrapServers = "unused:9092"); if (declareTopology) k.Topic(destination, 2, 1); Scan(k, fixture.Marker, configuration); });
-            else b.AddRabbitMq("rabbit", r => { r.Configure(o => o.Topology = TopologyMode.CreateMissing); if (declareTopology) r.Exchange(destination); Scan(r, fixture.Marker, configuration); });
+            if (kafka) b.AddKafka("kafka", k => { k.Configure(o => o.Connection = KafkaConnection()); if (declareTopology) k.Topic(destination, 2, 1); Scan(k, fixture.Marker); });
+            else b.AddRabbitMq("rabbit", r => { r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }); if (declareTopology) r.Exchange(destination); Scan(r, fixture.Marker); });
         });
         return services;
     }
+    private static RabbitMqUriConnectionSettings RabbitConnection() => new(new Uri("amqp://guest:guest@localhost:5672/"));
+    private static KafkaConnectionSettings KafkaConnection() => new() { BootstrapServers = "unused:9092" };
     private static void Prepare(RabbitMqBuilder builder, string destination = "events")
-        => builder.Configure(o => o.Topology = TopologyMode.CreateMissing).Exchange(destination);
+        => builder.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }).Exchange(destination);
     private static void Prepare(KafkaBuilder builder, string destination = "events")
-        => builder.Configure(o => o.Client.BootstrapServers = "unused:9092").Topic(destination, 2, 1);
+        => builder.Configure(o => o.Connection = KafkaConnection()).Topic(destination, 2, 1);
     private static Attribute Attribute(bool kafka, Type? message = null, string subscription = "orders") => kafka
         ? new KafkaConsumerAttribute(message ?? typeof(Message)) { Topic = "events", Group = subscription, Partitions = 2, ReplicationFactor = 1 }
         : new RabbitMqConsumerAttribute(message ?? typeof(Message)) { Queue = subscription, Exchange = "events" };
-    private static void Scan(object builder, Type marker, IConfiguration? configuration = null)
+    private static void Scan(object builder, Type marker)
         {
-        if (builder is KafkaBuilder kafka) kafka.AddConsumersFromAssembly(marker.Assembly, configuration);
-        else ((RabbitMqBuilder)builder).AddConsumersFromAssembly(marker.Assembly, configuration);
+        if (builder is KafkaBuilder kafka) kafka.AddConsumersFromAssembly(marker.Assembly);
+        else ((RabbitMqBuilder)builder).AddConsumersFromAssembly(marker.Assembly);
     }
     private static void Manual(object builder, Type consumer)
         => Invoke(builder.GetType().GetMethod("Consume")!.MakeGenericMethod(typeof(Message), consumer), builder,
@@ -610,20 +606,19 @@ public sealed class ConsumerScanningTests
             }
             return type.CreateType()!;
         }
-        public void Configuration(bool kafka, Type consumer, Type message, Action<object, IConfiguration> configure,
+        public void Configuration(bool kafka, Type consumer, Type message, Action<object> configure,
             bool inherit = false, bool publicConstructor = true)
         {
             var baseType = (kafka ? typeof(KafkaConsumerConfiguration<,>) : typeof(RabbitMqConsumerConfiguration<,>)).MakeGenericType(message, consumer);
             var optionsType = kafka ? typeof(KafkaConsumerOptions) : typeof(RabbitMqConsumerOptions);
             var type = _module.DefineType("Configuration" + _index++, TypeAttributes.Public | (inherit ? TypeAttributes.Abstract : 0), baseType);
             type.DefineDefaultConstructor(publicConstructor ? MethodAttributes.Public : MethodAttributes.Private);
-            var callback = type.DefineField("Callback", typeof(Action<object, IConfiguration>), FieldAttributes.Public | FieldAttributes.Static);
-            var method = type.DefineMethod("Configure", MethodAttributes.Public | MethodAttributes.Virtual, typeof(void), [optionsType, typeof(IConfiguration)]);
+            var callback = type.DefineField("Callback", typeof(Action<object>), FieldAttributes.Public | FieldAttributes.Static);
+            var method = type.DefineMethod("Configure", MethodAttributes.Public | MethodAttributes.Virtual, typeof(void), [optionsType]);
             var il = method.GetILGenerator();
             il.Emit(OpCodes.Ldsfld, callback);
             il.Emit(OpCodes.Ldarg_1);
-            il.Emit(OpCodes.Ldarg_2);
-            il.Emit(OpCodes.Callvirt, typeof(Action<object, IConfiguration>).GetMethod("Invoke")!);
+            il.Emit(OpCodes.Callvirt, typeof(Action<object>).GetMethod("Invoke")!);
             il.Emit(OpCodes.Ret);
             type.DefineMethodOverride(method, baseType.GetMethod("Configure")!);
             var configuredType = type.CreateType()!;

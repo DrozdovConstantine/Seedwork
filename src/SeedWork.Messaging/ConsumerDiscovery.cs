@@ -76,14 +76,14 @@ internal static class ConsumerDiscovery
             throw new InvalidOperationException($"Consumer '{consumer.FullName}' does not implement IConsumer for message '{message?.FullName}'.");
     }
 
-    internal static void ApplyConfiguration(Type? type, object options, object configuration)
+    internal static void ApplyConfiguration(Type? type, object options)
     {
         if (type is null) return;
         try
         {
             var instance = Activator.CreateInstance(type)!;
-            type.GetMethod("Configure", [options.GetType(), typeof(Microsoft.Extensions.Configuration.IConfiguration)])!
-                .Invoke(instance, [options, configuration]);
+            type.GetMethod("Configure", [options.GetType()])!
+                .Invoke(instance, [options]);
         }
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {

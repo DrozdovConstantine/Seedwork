@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Confluent.Kafka;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -17,12 +18,27 @@ builder.Services.AddSeedWorkMessaging(b =>
 {
     b.AddRabbitMq("rabbit", r => r.Configure(o =>
     {
-        o.Connection.Uri = new Uri(builder.Configuration["RabbitMQ"] ?? "amqp://guest:guest@localhost:5673/");
+        o.Connection = new RabbitMqFieldsConnectionSettings
+        {
+            HostName = builder.Configuration["RabbitMQ:HostName"] ?? "localhost",
+            Port = builder.Configuration.GetValue("RabbitMQ:Port", 5673),
+            UserName = builder.Configuration["RabbitMQ:UserName"] ?? "guest",
+            Password = builder.Configuration["RabbitMQ:Password"] ?? "guest",
+            VirtualHost = builder.Configuration["RabbitMQ:VirtualHost"] ?? "/",
+            UseTls = builder.Configuration.GetValue("RabbitMQ:UseTls", false)
+        };
         o.Topology = TopologyMode.CreateMissing;
     }).Exchange("orders.v1").Publish<OrderSubmitted>("orders-rabbit", "orders.v1", "submitted"));
     b.AddKafka("kafka", k => k.Configure(o =>
     {
-        o.Client.BootstrapServers = builder.Configuration["Kafka"] ?? "127.0.0.1:19092";
+        o.Connection = new KafkaConnectionSettings
+        {
+            BootstrapServers = builder.Configuration["Kafka:BootstrapServers"] ?? "127.0.0.1:19092",
+            SecurityProtocol = builder.Configuration.GetValue("Kafka:SecurityProtocol", SecurityProtocol.Plaintext),
+            SaslMechanism = builder.Configuration.GetValue<SaslMechanism?>("Kafka:SaslMechanism"),
+            SaslUsername = builder.Configuration["Kafka:SaslUsername"],
+            SaslPassword = builder.Configuration["Kafka:SaslPassword"]
+        };
         o.Topology = TopologyMode.CreateMissing;
     }).Topic("orders.v1", 2, 1).Publish<OrderSubmitted>("orders-kafka", "orders.v1"));
 });

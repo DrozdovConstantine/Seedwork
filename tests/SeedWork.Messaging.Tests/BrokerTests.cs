@@ -4,7 +4,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +26,8 @@ public sealed class BrokerFactAttribute : FactAttribute
 [Collection("Messaging")]
 public sealed class BrokerTests
 {
+    private sealed record ScanSettings(string Name, bool NoRetry);
+    private static readonly AsyncLocal<ScanSettings?> CurrentScanSettings = new();
     private readonly string _name = "sw-" + Guid.NewGuid().ToString("N");
     private static string KafkaAddress => Environment.GetEnvironmentVariable("SEEDWORK_KAFKA") ?? "127.0.0.1:19092";
     private static Uri RabbitAddress => new(Environment.GetEnvironmentVariable("SEEDWORK_RABBITMQ") ?? "amqp://guest:guest@localhost:5673/");
@@ -231,7 +232,7 @@ public sealed class BrokerTests
         Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.Services.AddSeedWorkMessaging(b => b.AddKafka("k", k => k
-            .Configure(o => o.Client.BootstrapServers = KafkaAddress).Topic(_name, 2, 1)));
+            .Configure(o => o.Connection = new KafkaConnectionSettings { BootstrapServers = KafkaAddress }).Topic(_name, 2, 1)));
         await using var kafkaHost = new Harness(builder.Build(), new Probe());
         await Assert.ThrowsAsync<InvalidOperationException>(() => kafkaHost.StartAsync());
         using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = KafkaAddress }).Build();
@@ -328,33 +329,37 @@ public sealed class BrokerTests
         builder.Logging.ClearProviders();
         var state = new Probe();
         builder.Services.AddSingleton(state);
-        builder.Configuration["Scanning:Name"] = _name;
-        builder.Configuration["Scanning:NoRetry"] = noRetry.ToString();
-        builder.Services.AddSeedWorkMessaging(b =>
+        var previous = CurrentScanSettings.Value;
+        CurrentScanSettings.Value = scan ? new ScanSettings(_name, noRetry) : null;
+        try
         {
-            b.AddRabbitMq("rabbit", r =>
+            builder.Services.AddSeedWorkMessaging(b =>
             {
-                r.Configure(o =>
+                b.AddRabbitMq("rabbit", r =>
                 {
-                    o.Connection.Uri = RabbitAddress;
-                    o.Connection.ClientProvidedName = _name;
-                    o.ManagementUri = ManagementAddress;
-                    o.Topology = mode;
-                    o.ReconnectInterval = reconnect ?? TimeSpan.FromMilliseconds(200);
-                }).Publish<Event>("rabbit", _name);
-                if (!scan) r.Exchange(_name, exchangeType);
-                if (scan) r.AddConsumersFromAssembly(typeof(ProbeConsumer).Assembly, builder.Configuration);
-                else r.Consume<Event, ProbeConsumer>(_name + "-r", _name, _name, configureRetry: noRetry ? null : Retry);
+                    r.Configure(o =>
+                    {
+                        o.Connection = new RabbitMqUriConnectionSettings(RabbitAddress);
+                        o.ClientProvidedName = _name;
+                        o.ManagementUri = ManagementAddress;
+                        o.Topology = mode;
+                        o.ReconnectInterval = reconnect ?? TimeSpan.FromMilliseconds(200);
+                    }).Publish<Event>("rabbit", _name);
+                    if (!scan) r.Exchange(_name, exchangeType);
+                    if (scan) r.AddConsumersFromAssembly(typeof(ProbeConsumer).Assembly);
+                    else r.Consume<Event, ProbeConsumer>(_name + "-r", _name, _name, configureRetry: noRetry ? null : Retry);
+                });
+                b.AddKafka("kafka", k =>
+                {
+                    k.Configure(o => { o.Connection = new KafkaConnectionSettings { BootstrapServers = KafkaAddress }; o.Topology = mode; })
+                        .Publish<Event>("kafka", _name);
+                    if (!scan) k.Topic(_name, partitions, 1);
+                    if (scan) k.AddConsumersFromAssembly(typeof(ProbeConsumer).Assembly);
+                    else k.Consume<Event, ProbeConsumer>(_name + "-k", _name, _name, noRetry ? null : Retry);
+                });
             });
-            b.AddKafka("kafka", k =>
-            {
-                k.Configure(o => { o.Client.BootstrapServers = KafkaAddress; o.Topology = mode; })
-                    .Publish<Event>("kafka", _name);
-                if (!scan) k.Topic(_name, partitions, 1);
-                if (scan) k.AddConsumersFromAssembly(typeof(ProbeConsumer).Assembly, builder.Configuration);
-                else k.Consume<Event, ProbeConsumer>(_name + "-k", _name, _name, noRetry ? null : Retry);
-            });
-        });
+        }
+        finally { CurrentScanSettings.Value = previous; }
         return new Harness(builder.Build(), state);
     }
 
@@ -414,27 +419,29 @@ public sealed class BrokerTests
     }
     public sealed class ProbeRabbitConfiguration : RabbitMqConsumerConfiguration<Event, ProbeConsumer>
     {
-        public override void Configure(RabbitMqConsumerOptions options, IConfiguration configuration)
+        public override void Configure(RabbitMqConsumerOptions options)
         {
-            var name = configuration["Scanning:Name"]!;
+            var settings = CurrentScanSettings.Value ?? throw new InvalidOperationException("Missing scan settings.");
+            var name = settings.Name;
             options.Endpoint = name + "-r";
             options.Queue = name;
             options.Exchange = name;
-            if (configuration.GetValue<bool>("Scanning:NoRetry")) options.Retry = RetryOptions.NoRetry();
+            if (settings.NoRetry) options.Retry = RetryOptions.NoRetry();
             else Retry(options.Retry);
         }
     }
     public sealed class ProbeKafkaConfiguration : KafkaConsumerConfiguration<Event, ProbeConsumer>
     {
-        public override void Configure(KafkaConsumerOptions options, IConfiguration configuration)
+        public override void Configure(KafkaConsumerOptions options)
         {
-            var name = configuration["Scanning:Name"]!;
+            var settings = CurrentScanSettings.Value ?? throw new InvalidOperationException("Missing scan settings.");
+            var name = settings.Name;
             options.Endpoint = name + "-k";
             options.Topic = name;
             options.Partitions = 2;
             options.ReplicationFactor = 1;
             options.Group = name;
-            if (configuration.GetValue<bool>("Scanning:NoRetry")) options.Retry = RetryOptions.NoRetry();
+            if (settings.NoRetry) options.Retry = RetryOptions.NoRetry();
             else Retry(options.Retry);
         }
     }

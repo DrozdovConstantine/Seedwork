@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Confluent.Kafka;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -17,15 +18,30 @@ builder.Services.AddSeedWorkMessaging(b =>
     // RabbitMQ создаёт входную очередь, binding и error queue; этот сервис запускается до издателя.
     b.AddRabbitMq("rabbit", r => r.Configure(o =>
     {
-        o.Connection.Uri = new Uri(builder.Configuration["RabbitMQ"] ?? "amqp://guest:guest@localhost:5673/");
+        o.Connection = new RabbitMqFieldsConnectionSettings
+        {
+            HostName = builder.Configuration["RabbitMQ:HostName"] ?? "localhost",
+            Port = builder.Configuration.GetValue("RabbitMQ:Port", 5673),
+            UserName = builder.Configuration["RabbitMQ:UserName"] ?? "guest",
+            Password = builder.Configuration["RabbitMQ:Password"] ?? "guest",
+            VirtualHost = builder.Configuration["RabbitMQ:VirtualHost"] ?? "/",
+            UseTls = builder.Configuration.GetValue("RabbitMQ:UseTls", false)
+        };
         o.Topology = TopologyMode.CreateMissing;
-    }).AddConsumersFromAssembly(typeof(OrderConsumer).Assembly, builder.Configuration));
+    }).AddConsumersFromAssembly(typeof(OrderConsumer).Assembly));
     // Экземпляры сервиса с одной группой billing-v1 делят партиции между собой.
     b.AddKafka("kafka", k => k.Configure(o =>
     {
-        o.Client.BootstrapServers = builder.Configuration["Kafka"] ?? "127.0.0.1:19092";
+        o.Connection = new KafkaConnectionSettings
+        {
+            BootstrapServers = builder.Configuration["Kafka:BootstrapServers"] ?? "127.0.0.1:19092",
+            SecurityProtocol = builder.Configuration.GetValue("Kafka:SecurityProtocol", SecurityProtocol.Plaintext),
+            SaslMechanism = builder.Configuration.GetValue<SaslMechanism?>("Kafka:SaslMechanism"),
+            SaslUsername = builder.Configuration["Kafka:SaslUsername"],
+            SaslPassword = builder.Configuration["Kafka:SaslPassword"]
+        };
         o.Topology = TopologyMode.CreateMissing;
-    }).AddConsumersFromAssembly(typeof(OrderConsumer).Assembly, builder.Configuration));
+    }).AddConsumersFromAssembly(typeof(OrderConsumer).Assembly));
 });
 // Подключаем общий источник и источники адаптеров; связь с издателем восстанавливается из headers.
 builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("seedwork-consumer"))
@@ -57,23 +73,23 @@ public sealed class OrderConsumer(ILogger<OrderConsumer> logger) : IConsumer<Ord
 // Значения атрибута уже заполнены: меняем только повторы, сохраняя привязку очереди.
 public sealed class OrderRabbitConfiguration : RabbitMqConsumerConfiguration<OrderSubmitted, OrderConsumer>
 {
-    public override void Configure(RabbitMqConsumerOptions options, IConfiguration configuration)
+    public override void Configure(RabbitMqConsumerOptions options)
     {
-        options.Retry.MaxRetries = configuration.GetValue("Messaging:RabbitRetries", 3);
+        options.Retry.MaxRetries = 3;
         options.Retry.Exponential = true;
     }
 }
 
-// Kafka использует только класс конфигурации; группа может задаваться настройками приложения.
+// Kafka использует только класс конфигурации; группа задана прямо в подписке.
 public sealed class OrderKafkaConfiguration : KafkaConsumerConfiguration<OrderSubmitted, OrderConsumer>
 {
-    public override void Configure(KafkaConsumerOptions options, IConfiguration configuration)
+    public override void Configure(KafkaConsumerOptions options)
     {
         options.Endpoint = "orders-kafka";
         options.Topic = "orders.v1";
         options.Partitions = 2;
         options.ReplicationFactor = 1;
-        options.Group = configuration["Messaging:KafkaGroup"] ?? "billing-v1";
+        options.Group = "billing-v1";
         // Без повторов первая ошибка сразу приостанавливает партицию.
         options.Retry = RetryOptions.NoRetry();
     }

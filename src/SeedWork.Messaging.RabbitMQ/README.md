@@ -49,10 +49,26 @@ Connection, route и endpoint должны иметь уникальные им�
 
 | Настройка подключения | Значение / поведение по умолчанию |
 |---|---|
-| `Connection` | ConnectionFactory клиента RabbitMQ; адрес и учётные данные задаёт приложение |
+| `Connection` | Обязательные настройки: `RabbitMqUriConnectionSettings` или `RabbitMqFieldsConnectionSettings` |
+| `ClientProvidedName` | Не задано; имя подключения в брокере |
 | `Topology` | `ValidateOnly`; существующие ресурсы должны быть подготовлены |
 | `ManagementUri` | Не задан; обязателен для ValidateOnly, должен заканчиваться `/` |
 | `ReconnectInterval` | 5 секунд; должен быть положительным |
+
+Прежнее свойство `RabbitMqOptions.Connection` типа `ConnectionFactory` заменено на
+`IRabbitMqConnectionSettings`. Для настройки отдельными полями используйте:
+
+```csharp
+options.Connection = new RabbitMqFieldsConnectionSettings
+{
+    HostName = "localhost", Port = 5673,
+    UserName = "guest", Password = "guest", VirtualHost = "/"
+};
+```
+
+`UseTls = true` включает TLS с проверкой сертификата по системному хранилищу;
+если порт не указан, используется 5671 вместо 5672. Для готового URI используйте
+`new RabbitMqUriConnectionSettings(new Uri("amqps://user:password@broker/"))`.
 
 | Настройка консумера | Значение / требование |
 |---|---|
@@ -104,7 +120,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSeedWorkMessaging(bus => bus.AddRabbitMq("rabbit", rabbit => rabbit
     .Configure(options =>
     {
-        options.Connection.Uri = new Uri("amqp://guest:guest@localhost:5673/");
+        options.Connection = new RabbitMqUriConnectionSettings(new Uri("amqp://guest:guest@localhost:5673/"));
         options.Topology = TopologyMode.CreateMissing;
     })
     .Exchange("orders.v1")
@@ -159,7 +175,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSeedWorkMessaging(bus => bus.AddRabbitMq("rabbit", rabbit => rabbit
     .Configure(options =>
     {
-        options.Connection.Uri = new Uri("amqp://guest:guest@localhost:5673/");
+        options.Connection = new RabbitMqUriConnectionSettings(new Uri("amqp://guest:guest@localhost:5673/"));
         options.Topology = TopologyMode.CreateMissing;
     })
     .Exchange("orders.v1")
@@ -249,7 +265,7 @@ public sealed class OrderConsumer(OrderHandler handler, ILogger<OrderConsumer> l
 ## 5. Подписка только через атрибут
 
 В примере 1 замените `.Exchange(...).Consume<...>(...)` на
-`.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly, builder.Configuration)`.
+`.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)`.
 К существующему классу OrderConsumer добавьте атрибут:
 
 ```csharp
@@ -266,16 +282,16 @@ public sealed class OrderConsumer(OrderHandler handler, ILogger<OrderConsumer> l
 ## 6. Подписка только через класс конфигурации
 
 Используйте тот же вызов сканирования, удалите атрибут и добавьте класс ниже в сборку
-консумера. Добавьте `using Microsoft.Extensions.Configuration;`.
+консумера.
 
 ```csharp
 public sealed class OrderConsumerConfiguration
     : RabbitMqConsumerConfiguration<OrderCreated, OrderConsumer>
 {
-    public override void Configure(RabbitMqConsumerOptions options, IConfiguration configuration)
+    public override void Configure(RabbitMqConsumerOptions options)
     {
         options.Endpoint = "billing-orders";
-        options.Queue = configuration["Messaging:OrdersQueue"] ?? "billing.orders.v1";
+        options.Queue = "billing.orders.v1";
         options.Exchange = "orders.v1";
         options.ExchangeType = RabbitMqExchangeType.Topic;
         options.BindingKey = "orders.created";
@@ -286,34 +302,9 @@ public sealed class OrderConsumerConfiguration
 ```
 
 Класс создаётся через публичный конструктор без параметров, а не через DI. Консумер и
-его конфигурация должны находиться в одной сканируемой сборке. IConfiguration передаётся
-аргументом сканирования; без аргумента он пустой. Автоматического binding ConsumerOptions
-из JSON нет: нужные ключи читает Configure.
-
-Создайте appsettings.json в рабочем каталоге запуска приложения:
-
-```json
-{
-  "RabbitMQ": "amqp://guest:guest@localhost:5673/",
-  "Messaging": {
-    "OrdersQueue": "billing.orders.v1",
-    "RetryCount": 3
-  }
-}
-```
-
-В Configure подключения замените фиксированный адрес на
-`new Uri(builder.Configuration["RabbitMQ"] ?? "amqp://guest:guest@localhost:5673/")`.
-Host.CreateApplicationBuilder читает appsettings.json из content root; для запуска из
-другой папки явно настройте content root или передайте значения окружением.
-
-```powershell
-$env:Messaging__OrdersQueue = 'billing.orders.v2'
-dotnet run --project artifacts/tutorials/RabbitConsumer
-Remove-Item Env:Messaging__OrdersQueue
-```
-
-Это создаст другую очередь: имеющиеся сообщения автоматически туда не переносятся.
+его конфигурация должны находиться в одной сканируемой сборке. Настройки подписки
+задаются в коде; адрес подключения к брокеру приложение по-прежнему может читать из
+своей конфигурации.
 
 <a id="override"></a>
 ## 7. Класс поверх атрибута
@@ -321,10 +312,10 @@ Remove-Item Env:Messaging__OrdersQueue
 Оставьте атрибут из примера 5. В классе из примера 6 замените тело Configure:
 
 ```csharp
-options.Queue = configuration["Messaging:OrdersQueue"] ?? options.Queue;
+options.Queue = "billing.orders.v2";
 options.Retry = new RetryOptions
 {
-    MaxRetries = configuration.GetValue<int>("Messaging:RetryCount", 3),
+    MaxRetries = 3,
     Interval = TimeSpan.FromSeconds(2)
 };
 ```
@@ -342,7 +333,7 @@ options.Retry = new RetryOptions
 после Configure вызовите:
 
 ```csharp
-rabbit.AddConsumersFromAssembly(consumerAssembly, builder.Configuration);
+rabbit.AddConsumersFromAssembly(consumerAssembly);
 ```
 
 Если приложение уже располагает коллекцией сборок `IEnumerable<Assembly> consumerAssemblies`,
@@ -350,7 +341,7 @@ rabbit.AddConsumersFromAssembly(consumerAssembly, builder.Configuration);
 
 ```csharp
 foreach (var assembly in consumerAssemblies.Distinct())
-    rabbit.AddConsumersFromAssembly(assembly, builder.Configuration);
+    rabbit.AddConsumersFromAssembly(assembly);
 ```
 
 Сканируются конкретные закрытые классы; унаследованный IConsumer учитывается, атрибуты
@@ -426,7 +417,7 @@ rabbit.Exchange("orders.v1", RabbitMqExchangeType.Topic)
 ```
 
 Внутри `AddRabbitMq` после `Configure` используйте
-`rabbit.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly, builder.Configuration)`.
+`rabbit.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly)`.
 Один вызов обнаружит обе подписки и объявит общий exchange типа Topic.
 Атрибуты указывают разные типы сообщений: два атрибута для одного и того же типа
 считаются дубликатом и вызывают ошибку регистрации.
@@ -434,14 +425,14 @@ rabbit.Exchange("orders.v1", RabbitMqExchangeType.Topic)
 ### Вариант 3: отдельный класс конфигурации для каждого типа
 
 Уберите атрибуты и ручные `Consume`, оставьте вызов сканирования из варианта 2.
-Добавьте в ту же сборку оба класса. Для второго типа показана замена имени очереди
-через конфигурацию приложения; она не влияет на первый тип.
+Добавьте в ту же сборку оба класса. Имя очереди второго типа задано независимо
+и не влияет на первый тип.
 
 ```csharp
 public sealed class CreatedConfiguration
     : RabbitMqConsumerConfiguration<OrderCreated, OrderEventsConsumer>
 {
-    public override void Configure(RabbitMqConsumerOptions options, IConfiguration configuration)
+    public override void Configure(RabbitMqConsumerOptions options)
     {
         options.Endpoint = "orders-created-consumer";
         options.Queue = "billing.orders.created";
@@ -455,10 +446,10 @@ public sealed class CreatedConfiguration
 public sealed class CancelledConfiguration
     : RabbitMqConsumerConfiguration<OrderCancelled, OrderEventsConsumer>
 {
-    public override void Configure(RabbitMqConsumerOptions options, IConfiguration configuration)
+    public override void Configure(RabbitMqConsumerOptions options)
     {
         options.Endpoint = "orders-cancelled-consumer";
-        options.Queue = configuration["Messaging:CancelledQueue"] ?? "billing.orders.cancelled";
+        options.Queue = "billing.orders.cancelled";
         options.Exchange = "orders.v1";
         options.ExchangeType = RabbitMqExchangeType.Topic;
         options.BindingKey = "orders.cancelled";
@@ -467,8 +458,7 @@ public sealed class CancelledConfiguration
 }
 ```
 
-Добавьте `using Microsoft.Extensions.Configuration;`. При указании другого имени
-`Messaging:CancelledQueue` изменится только вторая очередь. Оба класса конфигурации
+Изменение `options.Queue` во втором классе затронет только вторую очередь. Оба класса конфигурации
 должны иметь публичный конструктор без параметров. Одна пара «тип — консумер» может
 иметь не более одного такого класса; для разных типов пары независимы.
 
@@ -647,18 +637,21 @@ Null вместо Retry недопустим. Раньше отсутствие 
 После подготовки ресурсов замените тело Configure подключения в примере 1:
 
 ```csharp
-options.Connection.Uri = new Uri("amqp://guest:guest@localhost:5673/");
+options.Connection = new RabbitMqUriConnectionSettings(new Uri("amqp://guest:guest@localhost:5673/"));
 options.ManagementUri = new Uri("http://localhost:15673/");
 options.Topology = TopologyMode.ValidateOnly;
 options.ReconnectInterval = TimeSpan.FromSeconds(5);
 ```
 
-ValidateOnly использует HTTP GET Management API и учётные данные из Connection; проверяет
+ValidateOnly использует HTTP GET Management API и учётные данные выбранного подключения; проверяет
 exchange, очереди, их параметры и bindings. Ресурсы не создаются. CreateMissing использует
 AMQP declarations и также отклоняет несовместимые ресурсы. Ошибка топологии останавливает
 запуск host. Совпадающие объявления общего exchange допускаются; разные типы — ошибка.
-Настройки TLS, учётные данные и virtual host задаются приложением через ConnectionFactory;
-секреты передавайте через конфигурацию окружения. После регистрации менять options нельзя.
+Для отдельной настройки задайте HostName, UserName, Password, Port, VirtualHost и UseTls
+в `RabbitMqFieldsConnectionSettings`. URI-вариант поддерживает `amqp` и `amqps`.
+Оба варианта требуют явных учётных данных; TLS использует системное доверие к сертификатам.
+Собственные CA и клиентские сертификаты в этом API не настраиваются. После регистрации
+менять options нельзя.
 
 <a id="connections"></a>
 ## 16. Несколько подключений и Kafka в одной шине
@@ -672,21 +665,32 @@ AMQP declarations и также отклоняет несовместимые р
 builder.Services.AddSeedWorkMessaging(bus =>
 {
     bus.AddRabbitMq("sales-rabbit", rabbit => rabbit
-        .Configure(o => { o.Connection.Uri = new Uri(builder.Configuration["SalesRabbit"]!); o.Topology = TopologyMode.CreateMissing; })
+        .Configure(o => { o.Connection = new RabbitMqFieldsConnectionSettings
+        {
+            HostName = builder.Configuration["SalesRabbit:HostName"]!,
+            UserName = builder.Configuration["SalesRabbit:UserName"]!,
+            Password = builder.Configuration["SalesRabbit:Password"]!
+        }; o.Topology = TopologyMode.CreateMissing; })
         .Exchange("orders.v1")
         .Publish<OrderCreated>("sales-orders", "orders.v1", "orders.created"));
     bus.AddRabbitMq("audit-rabbit", rabbit => rabbit
-        .Configure(o => { o.Connection.Uri = new Uri(builder.Configuration["AuditRabbit"]!); o.Topology = TopologyMode.CreateMissing; })
+        .Configure(o => { o.Connection = new RabbitMqFieldsConnectionSettings
+        {
+            HostName = builder.Configuration["AuditRabbit:HostName"]!,
+            UserName = builder.Configuration["AuditRabbit:UserName"]!,
+            Password = builder.Configuration["AuditRabbit:Password"]!
+        }; o.Topology = TopologyMode.CreateMissing; })
         .Exchange("orders.v1")
         .Publish<OrderCreated>("audit-orders", "orders.v1", "orders.created"));
     bus.AddKafka("analytics-kafka", kafka => kafka
-        .Configure(o => { o.Client.BootstrapServers = builder.Configuration["Kafka"]!; o.Topology = TopologyMode.CreateMissing; })
+        .Configure(o => { o.Connection = new KafkaConnectionSettings { BootstrapServers = builder.Configuration["Kafka:BootstrapServers"]! }; o.Topology = TopologyMode.CreateMissing; })
         .Topic("orders.v1", 2, 1)
         .Publish<OrderCreated>("analytics-orders", "orders.v1"));
 });
 ```
 
-Задайте SalesRabbit, AuditRabbit и Kafka в конфигурации. Один PublishAsync отправляет
+Задайте адреса и учётные данные SalesRabbit и AuditRabbit отдельно, а также
+`Kafka:BootstrapServers`. Один PublishAsync отправляет
 в один маршрут. Для двух назначений нужны два вызова; общей транзакции между ними нет.
 AddSeedWorkMessaging вызывается один раз на IServiceCollection.
 

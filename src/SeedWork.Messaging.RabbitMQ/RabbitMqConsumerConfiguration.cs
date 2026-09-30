@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace SeedWork.Messaging.RabbitMQ;
 
 /// <summary>Простая привязка сообщения консумера к RabbitMQ. Класс конфигурации применяется после атрибута.</summary>
@@ -58,6 +56,6 @@ public sealed class RabbitMqConsumerOptions
 public abstract class RabbitMqConsumerConfiguration<TMessage, TConsumer>
     where TMessage : class where TConsumer : class, IConsumer<TMessage>
 {
-    /// <summary>Переопределяет значения атрибута; configuration берётся из аргумента сканирования и по умолчанию пуст.</summary>
-    public abstract void Configure(RabbitMqConsumerOptions options, IConfiguration configuration);
+    /// <summary>Переопределяет значения атрибута константными настройками подписки.</summary>
+    public abstract void Configure(RabbitMqConsumerOptions options);
 }

@@ -221,7 +221,7 @@ public sealed class KafkaTransport : IMessageTransport
     }
 
     // Конструкторы копирования Confluent могут разделять словарь настроек; роли клиентов должны иметь независимые копии.
-    private Dictionary<string, string> CopyClientConfig() => _config.Options.Client.ToDictionary(x => x.Key, x => x.Value);
+    private Dictionary<string, string> CopyClientConfig() => new(_config.ClientProperties!, StringComparer.Ordinal);
 
     private sealed class PartitionWork(ConsumeResult<string, byte[]> record, CancellationTokenSource cancellation, Task<ConsumerFailure?> task)
     {

@@ -51,9 +51,26 @@ Route, connection и endpoint имеют уникальные имена в ра
 
 | Настройка подключения | Значение / поведение |
 |---|---|
-| `Client.BootstrapServers` | Обязательный адрес брокеров |
-| `Client` | Общие параметры Confluent ClientConfig, включая SSL/SASL |
+| `Connection.BootstrapServers` | Обязательный адрес брокеров |
+| `Connection` | `KafkaConnectionSettings`; отдельные поля SecurityProtocol, SaslMechanism, SaslUsername и SaslPassword |
 | `Topology` | По умолчанию `ValidateOnly` |
+
+Прежнее свойство `KafkaOptions.Client` типа `ClientConfig` заменено на обязательное
+`KafkaOptions.Connection`. Для SASL задайте поля отдельно:
+
+```csharp
+options.Connection = new KafkaConnectionSettings
+{
+    BootstrapServers = "broker:9093",
+    SecurityProtocol = Confluent.Kafka.SecurityProtocol.SaslSsl,
+    SaslMechanism = Confluent.Kafka.SaslMechanism.ScramSha256,
+    SaslUsername = "app",
+    SaslPassword = "secret"
+};
+```
+
+При SASL протоколе нужны механизм, логин и пароль. Без SASL настройками по умолчанию
+используется Plaintext; для TLS без SASL задайте `SecurityProtocol = SecurityProtocol.Ssl`.
 
 | Настройка консумера | Значение / требование |
 |---|---|
@@ -107,7 +124,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSeedWorkMessaging(bus => bus.AddKafka("kafka", kafka => kafka
     .Configure(options =>
     {
-        options.Client.BootstrapServers = "127.0.0.1:19092";
+        options.Connection = new KafkaConnectionSettings { BootstrapServers = "127.0.0.1:19092" };
         options.Topology = TopologyMode.CreateMissing;
     })
     .Topic("orders.v1", partitions: 2, replicationFactor: 1)
@@ -160,7 +177,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSeedWorkMessaging(bus => bus.AddKafka("kafka", kafka => kafka
     .Configure(options =>
     {
-        options.Client.BootstrapServers = "127.0.0.1:19092";
+        options.Connection = new KafkaConnectionSettings { BootstrapServers = "127.0.0.1:19092" };
         options.Topology = TopologyMode.CreateMissing;
     })
     .Topic("orders.v1", partitions: 2, replicationFactor: 1)
@@ -257,7 +274,7 @@ public sealed class OrderConsumer(OrderHandler handler, ILogger<OrderConsumer> l
 ## 5. Подписка только через атрибут
 
 В примере 1 замените `.Topic(...).Consume<...>(...)` на
-`.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly, builder.Configuration)`.
+`.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)`.
 Непосредственно перед объявлением существующего OrderConsumer добавьте:
 
 ```csharp
@@ -272,18 +289,17 @@ public sealed class OrderConsumer(OrderHandler handler, ILogger<OrderConsumer> l
 ## 6. Подписка только через класс конфигурации
 
 Используйте тот же вызов сканирования, удалите атрибут и добавьте класс в сборку консумера.
-Нужен `using Microsoft.Extensions.Configuration;`.
 
 ```csharp
 public sealed class OrderConsumerConfiguration
     : KafkaConsumerConfiguration<OrderCreated, OrderConsumer>
 {
-    public override void Configure(KafkaConsumerOptions options, IConfiguration configuration)
+    public override void Configure(KafkaConsumerOptions options)
     {
         options.Endpoint = "billing-orders";
         options.Topic = "orders.v1";
-        options.Group = configuration["Messaging:OrdersGroup"] ?? "billing-v1";
-        options.Partitions = configuration.GetValue<int>("Messaging:Partitions", 2);
+        options.Group = "billing-v1";
+        options.Partitions = 2;
         options.ReplicationFactor = 1;
         options.Retry = RetryOptions.NoRetry();
     }
@@ -292,35 +308,8 @@ public sealed class OrderConsumerConfiguration
 
 Конфигурация имеет публичный конструктор без параметров; зависимости через DI в неё
 не передаются. Консумер и конфигурация должны находиться в одной сканируемой сборке.
-Без аргумента configuration метод получает пустой IConfiguration. Привязка ConsumerOptions
-к JSON не выполняется автоматически: чтение значений явно показано в Configure.
-
-appsettings.json в рабочем каталоге запуска:
-
-```json
-{
-  "Kafka": "127.0.0.1:19092",
-  "Messaging": {
-    "OrdersGroup": "billing-v1",
-    "Partitions": 2,
-    "RetryCount": 3
-  }
-}
-```
-
-В настройке подключения замените BootstrapServers на
-`builder.Configuration["Kafka"] ?? "127.0.0.1:19092"`. Host.CreateApplicationBuilder читает
-appsettings.json из content root. При запуске из другой папки настройте content root
-или передавайте конфигурацию переменными окружения:
-
-```powershell
-$env:Messaging__OrdersGroup = 'billing-preview-v1'
-dotnet run --project artifacts/tutorials/KafkaConsumer
-Remove-Item Env:Messaging__OrdersGroup
-```
-
-Это новая независимая группа, а не переименование старой: без сохранённых offsets она
-прочитает доступную историю. Изменение Messaging:Partitions не выполняет миграцию topic.
+Настройки подписки задаются в коде; адрес подключения к брокеру приложение по-прежнему
+может читать из своей конфигурации. Изменение числа партиций не выполняет миграцию topic.
 
 <a id="override"></a>
 ## 7. Класс поверх атрибута
@@ -328,10 +317,10 @@ Remove-Item Env:Messaging__OrdersGroup
 Оставьте атрибут из примера 5 и замените тело Configure класса из примера 6:
 
 ```csharp
-options.Group = configuration["Messaging:OrdersGroup"] ?? options.Group;
+options.Group = "billing-preview-v1";
 options.Retry = new RetryOptions
 {
-    MaxRetries = configuration.GetValue<int>("Messaging:RetryCount", 3),
+    MaxRetries = 3,
     Interval = TimeSpan.FromSeconds(2)
 };
 ```
@@ -348,7 +337,7 @@ Defaults заполняются из атрибута, затем класс м�
 Внутри AddKafka после Configure:
 
 ```csharp
-kafka.AddConsumersFromAssembly(consumerAssembly, builder.Configuration);
+kafka.AddConsumersFromAssembly(consumerAssembly);
 ```
 
 Для переданной приложением коллекции `IEnumerable<Assembly> consumerAssemblies`
@@ -356,7 +345,7 @@ kafka.AddConsumersFromAssembly(consumerAssembly, builder.Configuration);
 
 ```csharp
 foreach (var assembly in consumerAssemblies.Distinct())
-    kafka.AddConsumersFromAssembly(assembly, builder.Configuration);
+    kafka.AddConsumersFromAssembly(assembly);
 ```
 
 Сканируются конкретные закрытые классы с IConsumer, включая унаследованные интерфейсы.
@@ -374,11 +363,10 @@ Consume и отдельная проверка совместимости JSON �
 После сборки получателя запустите команду в двух терминалах:
 
 ```powershell
-dotnet run --project artifacts/tutorials/KafkaConsumer -- --Messaging:OrdersGroup=billing-v1
+dotnet run --project artifacts/tutorials/KafkaConsumer
 ```
 
-Этот аргумент используется вариантом с классом из примера 6; в минимальном примере 1
-группа уже зафиксирована как billing-v1. При двух партициях Kafka распределяет их между
+Группа billing-v1 задана в классе конфигурации из примера 6. При двух партициях Kafka распределяет их между
 участниками группы. У одной партиции в пределах группы один текущий владелец. Дополнительные
 экземпляры сверх числа партиций могут остаться без назначений. Один процесс способен
 обрабатывать несколько назначенных партиций параллельно, сохраняя последовательность в каждой.
@@ -407,7 +395,7 @@ dotnet run --project artifacts/tutorials/KafkaConsumer -- --Messaging:OrdersGrou
 
 ```csharp
 .Topic("orders.v1", partitions: 2, replicationFactor: 1)
-.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly, builder.Configuration)
+.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)
 ```
 
 При этом атрибут OrderConsumer замените на вариант без размеров topic:
@@ -423,15 +411,17 @@ Partitions/ReplicationFactor со значением 0 используют об
 После создания ресурсов замените тело Configure подключения:
 
 ```csharp
-options.Client.BootstrapServers = "127.0.0.1:19092";
+options.Connection = new KafkaConnectionSettings { BootstrapServers = "127.0.0.1:19092" };
 options.Topology = TopologyMode.ValidateOnly;
 ```
 
 ValidateOnly проверяет существование topic, число партиций и реплик без создания.
 CreateMissing создаёт отсутствующий topic и проверяет существующий. Изменений количества
 партиций/реплик адаптер не делает. Несоответствие останавливает запуск host.
-Общие настройки SSL/SASL задаются через ClientConfig в Configure; адреса и секреты
-берутся из окружения приложения. После регистрации менять options нельзя.
+Режим защиты и SASL задаются отдельными полями `KafkaConnectionSettings`; адреса и секреты
+приложение может получать из окружения. TLS использует системное доверие к сертификатам;
+собственные CA и клиентские сертификаты в этом API не настраиваются. После регистрации
+менять options нельзя.
 
 <a id="multi-contract"></a>
 ## Один класс обрабатывает несколько типов сообщений
@@ -499,20 +489,20 @@ kafka.Topic("orders.created.v1", partitions: 2, replicationFactor: 1)
 ```
 
 Внутри `AddKafka` после `Configure` вызовите
-`kafka.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly, builder.Configuration)`.
+`kafka.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly)`.
 Сканирование создаст две подписки. Для одной пары «тип — консумер» повторный атрибут
 запрещён; для двух разных типов атрибуты работают независимо.
 
 ### Вариант 3: два класса конфигурации
 
 Уберите атрибуты, оставьте одно сканирование и добавьте классы в ту же сборку.
-Параметр `Messaging:CancelledGroup` управляет только второй подпиской.
+Поле Group второго класса задаётся независимо от первого.
 
 ```csharp
 public sealed class CreatedConfiguration
     : KafkaConsumerConfiguration<OrderCreated, OrderEventsConsumer>
 {
-    public override void Configure(KafkaConsumerOptions options, IConfiguration configuration)
+    public override void Configure(KafkaConsumerOptions options)
     {
         options.Endpoint = "orders-created-consumer";
         options.Topic = "orders.created.v1";
@@ -526,11 +516,11 @@ public sealed class CreatedConfiguration
 public sealed class CancelledConfiguration
     : KafkaConsumerConfiguration<OrderCancelled, OrderEventsConsumer>
 {
-    public override void Configure(KafkaConsumerOptions options, IConfiguration configuration)
+    public override void Configure(KafkaConsumerOptions options)
     {
         options.Endpoint = "orders-cancelled-consumer";
         options.Topic = "orders.cancelled.v1";
-        options.Group = configuration["Messaging:CancelledGroup"] ?? "billing-v1";
+        options.Group = "billing-v1";
         options.Partitions = 2;
         options.ReplicationFactor = 1;
         options.Retry = RetryOptions.NoRetry();
@@ -538,8 +528,7 @@ public sealed class CancelledConfiguration
 }
 ```
 
-Добавьте `using Microsoft.Extensions.Configuration;`. Публичный конструктор без
-параметров нужен каждому классу конфигурации. При одинаковой group два разных topic
+Публичный конструктор без параметров нужен каждому классу конфигурации. При одинаковой group два разных topic
 остаются независимыми подписками. Для одной пары «тип — консумер» допускается один
 класс конфигурации; для разных типов классы различаются generic-аргументом.
 
@@ -664,15 +653,20 @@ Error topic, пропуск ошибочной записи и публичны�
 builder.Services.AddSeedWorkMessaging(bus =>
 {
     bus.AddKafka("sales-kafka", kafka => kafka
-        .Configure(o => { o.Client.BootstrapServers = builder.Configuration["SalesKafka"]!; o.Topology = TopologyMode.CreateMissing; })
+        .Configure(o => { o.Connection = new KafkaConnectionSettings { BootstrapServers = builder.Configuration["SalesKafka:BootstrapServers"]! }; o.Topology = TopologyMode.CreateMissing; })
         .Topic("orders.v1", 2, 1)
         .Publish<OrderCreated>("sales-orders", "orders.v1"));
     bus.AddKafka("audit-kafka", kafka => kafka
-        .Configure(o => { o.Client.BootstrapServers = builder.Configuration["AuditKafka"]!; o.Topology = TopologyMode.CreateMissing; })
+        .Configure(o => { o.Connection = new KafkaConnectionSettings { BootstrapServers = builder.Configuration["AuditKafka:BootstrapServers"]! }; o.Topology = TopologyMode.CreateMissing; })
         .Topic("orders.v1", 2, 1)
         .Publish<OrderCreated>("audit-orders", "orders.v1"));
     bus.AddRabbitMq("billing-rabbit", rabbit => rabbit
-        .Configure(o => { o.Connection.Uri = new Uri(builder.Configuration["RabbitMQ"]!); o.Topology = TopologyMode.CreateMissing; })
+        .Configure(o => { o.Connection = new RabbitMqFieldsConnectionSettings
+        {
+            HostName = builder.Configuration["RabbitMQ:HostName"]!,
+            UserName = builder.Configuration["RabbitMQ:UserName"]!,
+            Password = builder.Configuration["RabbitMQ:Password"]!
+        }; o.Topology = TopologyMode.CreateMissing; })
         .Exchange("orders.v1")
         .Publish<OrderCreated>("billing-orders", "orders.v1", "orders.created"));
 });

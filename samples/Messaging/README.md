@@ -22,14 +22,17 @@ Consumer сначала создаёт RabbitMQ queue/binding: обязател�
 используют Kafka и RabbitMQ, но объявляют `OrderSubmitted` независимо.
 У consumer есть добавленное необязательное поле Currency. Общей сборки контрактов нет.
 
-Подписки регистрируются одним `AddConsumersFromAssembly(typeof(OrderConsumer).Assembly, builder.Configuration)` на каждый
+Подписки регистрируются одним `AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)` на каждый
 транспорт. RabbitMQ демонстрирует атрибут и отдельный класс конфигурации, который
-явно включает повторы; Kafka — только класс конфигурации с RetryOptions.NoRetry(). В классы передаётся
-`builder.Configuration`. Можно задать `Messaging:RabbitRetries` и `Messaging:KafkaGroup`
-аргументами командной строки либо через переменные окружения с разделителем `__`.
+явно включает повторы; Kafka — только класс конфигурации с RetryOptions.NoRetry().
+Настройки подписок заданы в коде; конфигурация приложения используется для адресов
+и учётных данных брокеров.
 Топология описана в настройках консумера; отдельные Exchange/Topic перед сканированием не нужны.
 
-Адреса задаются ключами конфигурации `RabbitMQ` и `Kafka` (аргументы либо environment).
+Адреса задаются ключами `RabbitMQ:HostName`, `RabbitMQ:Port` и `Kafka:BootstrapServers`.
+Учётные данные RabbitMQ задаются отдельно через `RabbitMQ:UserName` и `RabbitMQ:Password`;
+для Kafka при необходимости используются `Kafka:SecurityProtocol`, `Kafka:SaslMechanism`,
+`Kafka:SaslUsername` и `Kafka:SaslPassword` (аргументы либо environment с `__` вместо `:`).
 Значения по умолчанию находятся только в примере. Production-конфигурация пакетов
 не содержит адресов. Для production увеличьте replication factor Kafka согласно
 кластеру; в примере один broker и factor=1.

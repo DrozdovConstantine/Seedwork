@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace SeedWork.Messaging.Kafka;
 
 /// <summary>Простая привязка сообщения консумера к Kafka. Класс конфигурации применяется после атрибута.</summary>
@@ -54,6 +52,6 @@ public sealed class KafkaConsumerOptions
 public abstract class KafkaConsumerConfiguration<TMessage, TConsumer>
     where TMessage : class where TConsumer : class, IConsumer<TMessage>
 {
-    /// <summary>Переопределяет значения атрибута; configuration берётся из аргумента сканирования и по умолчанию пуст.</summary>
-    public abstract void Configure(KafkaConsumerOptions options, IConfiguration configuration);
+    /// <summary>Переопределяет значения атрибута константными настройками подписки.</summary>
+    public abstract void Configure(KafkaConsumerOptions options);
 }

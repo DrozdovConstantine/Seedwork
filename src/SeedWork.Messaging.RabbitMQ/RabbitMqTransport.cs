@@ -29,12 +29,11 @@ public sealed class RabbitMqTransport : IMessageTransport
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
         // Соединение и консумеры восстанавливаются единым циклом адаптера, без конкурирующего восстановления клиента.
-        _config.Options.Connection.AutomaticRecoveryEnabled = false;
-        _config.Options.Connection.ConsumerDispatchConcurrency = 1;
-        var connection = await _config.Options.Connection.CreateConnectionAsync(cancellationToken);
+        var factory = _config.ConnectionFactory!;
+        var connection = await factory.CreateConnectionAsync(cancellationToken);
         var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         connection.ConnectionShutdownAsync += (_, _) => { disconnected.TrySetResult(); return Task.CompletedTask; };
-        try { await RabbitTopology.EnsureAsync(connection, _config, cancellationToken); }
+        try { await RabbitTopology.EnsureAsync(connection, _config, factory, cancellationToken); }
         catch { await connection.DisposeAsync(); throw; }
         _disconnected = disconnected;
         _connection = connection;

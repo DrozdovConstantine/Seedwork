@@ -1,16 +1,17 @@
 using System.Reflection;
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 
 namespace SeedWork.Messaging.RabbitMQ;
 
-/// <summary>Настройки одного подключения RabbitMQ; адрес, секреты и TLS предоставляет приложение.</summary>
+/// <summary>Настройки одного подключения RabbitMQ.</summary>
 public sealed class RabbitMqOptions
 {
-    /// <summary>Параметры AMQP-соединения; восстановлением управляет адаптер.</summary>
-    public ConnectionFactory Connection { get; } = new();
+    /// <summary>Один из двух способов задания AMQP-соединения: URI или отдельные поля.</summary>
+    public IRabbitMqConnectionSettings? Connection { get; set; }
+    /// <summary>Имя подключения, отображаемое брокером.</summary>
+    public string? ClientProvidedName { get; set; }
     /// <summary>Проверка существующей топологии либо создание недостающих ресурсов при запуске.</summary>
     public TopologyMode Topology { get; set; } = TopologyMode.ValidateOnly;
     /// <summary>Базовый URI Management API с завершающим слешем; необходим для проверки топологии без изменений.</summary>
@@ -27,6 +28,7 @@ internal sealed record RabbitEndpoint(string Name, string Queue, string Exchange
 public sealed class RabbitMqBuilder
 {
     internal RabbitMqOptions Options { get; } = new();
+    internal ConnectionFactory? ConnectionFactory { get; private set; }
     internal Dictionary<string, string> Exchanges { get; } = new(StringComparer.Ordinal);
     internal Dictionary<string, RabbitRoute> Routes { get; } = new(StringComparer.Ordinal);
     internal List<RabbitEndpoint> Endpoints { get; } = [];
@@ -88,10 +90,9 @@ public sealed class RabbitMqBuilder
     /// <remarks>Конфигурация переопределяет атрибут. Ненастроенные консумеры пропускаются; топология берётся из итоговых настроек.</remarks>
     [RequiresUnreferencedCode("Consumer scanning requires untrimmed consumer and configuration types. Use explicit Consume registration when trimming.")]
     [RequiresDynamicCode("Consumer scanning closes generic registration methods at runtime. Use explicit Consume registration for NativeAOT.")]
-    public RabbitMqBuilder AddConsumersFromAssembly(Assembly assembly, IConfiguration? configuration = null)
+    public RabbitMqBuilder AddConsumersFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        configuration ??= new ConfigurationBuilder().Build();
         var registrations = ConsumerDiscovery.Find<RabbitMqConsumerAttribute>(assembly,
             typeof(RabbitMqConsumerConfiguration<,>), a => a.MessageType);
         foreach (var registration in registrations)
@@ -115,7 +116,7 @@ public sealed class RabbitMqBuilder
                 options.Retry.Handle.UnionWith(attribute.Handle ?? throw new ArgumentException("Handle cannot be null."));
                 options.Retry.Ignore.UnionWith(attribute.Ignore ?? throw new ArgumentException("Ignore cannot be null."));
             }
-            ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options, configuration);
+            ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options);
             if (string.IsNullOrWhiteSpace(options.Endpoint) || string.IsNullOrWhiteSpace(options.Queue) ||
                 string.IsNullOrWhiteSpace(options.Exchange) || options.BindingKey is null ||
                 options.ErrorQueue is not null && string.IsNullOrWhiteSpace(options.ErrorQueue))
@@ -133,6 +134,11 @@ public sealed class RabbitMqBuilder
 
     internal void Validate()
     {
+        ConnectionFactory = (Options.Connection ?? throw new ArgumentException("RabbitMQ connection settings are required."))
+            .CreateFactory();
+        ConnectionFactory.ClientProvidedName = Options.ClientProvidedName;
+        ConnectionFactory.AutomaticRecoveryEnabled = false;
+        ConnectionFactory.ConsumerDispatchConcurrency = 1;
         // Все подписки задают тип, включая Topic по умолчанию; конфликт не зависит от порядка объявлений.
         foreach (var options in _consumerTopology)
             Exchange(options.Exchange!, options.ExchangeType);

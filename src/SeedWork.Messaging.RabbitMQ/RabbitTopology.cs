@@ -13,11 +13,11 @@ internal static class RabbitTopology
         ? new() { ["x-queue-type"] = "quorum", ["x-single-active-consumer"] = true, ["x-delivery-limit"] = -1 }
         : new() { ["x-queue-type"] = "quorum" };
 
-    public static async Task EnsureAsync(IConnection connection, RabbitMqBuilder config, CancellationToken ct)
+    public static async Task EnsureAsync(IConnection connection, RabbitMqBuilder config, ConnectionFactory factory, CancellationToken ct)
     {
         if (config.Options.Topology == TopologyMode.ValidateOnly)
         {
-            await ValidateAsync(config, ct);
+            await ValidateAsync(config, factory, ct);
             return;
         }
         // AMQP declarations создают отсутствующие ресурсы и отклоняют несовместимые параметры существующих.
@@ -32,11 +32,10 @@ internal static class RabbitTopology
         }
     }
 
-    private static async Task ValidateAsync(RabbitMqBuilder config, CancellationToken ct)
+    private static async Task ValidateAsync(RabbitMqBuilder config, ConnectionFactory factory, CancellationToken ct)
     {
         // Management API позволяет проверить аргументы и bindings чтением, без риска создать недостающий ресурс.
         using var client = new HttpClient { BaseAddress = config.Options.ManagementUri, Timeout = TimeSpan.FromSeconds(30) };
-        var factory = config.Options.Connection;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
             Convert.ToBase64String(Encoding.UTF8.GetBytes(factory.UserName + ":" + factory.Password)));
         var vhost = Uri.EscapeDataString(factory.VirtualHost);
