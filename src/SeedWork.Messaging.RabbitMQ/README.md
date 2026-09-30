@@ -20,6 +20,7 @@
 - [6. Только класс конфигурации](#configuration)
 - [7. Класс поверх атрибута](#override)
 - [8. Сканирование Assembly](#assemblies)
+- [Один класс для нескольких типов сообщений](#multi-contract)
 - [9. Фиксированные повторы](#retry)
 - [10. Экспоненциальные повторы и фильтры](#retry-filters)
 - [11. Без повторов и собственная error queue](#errors)
@@ -69,29 +70,14 @@ active consumer и `x-delivery-limit=-1`, prefetch равен 1. Exchange durabl
 <a id="setup"></a>
 ## Установка и локальный запуск
 
-Команды PowerShell выполняются из корня репозитория. Путь к NuGet-источнику абсолютный,
-чтобы следующие команды не зависели от текущей папки. Доступ к nuget.org нужен для зависимостей.
-Публикация пакета в публичный источник не предполагается.
+Команды PowerShell выполняются из корня репозитория. Примеры подключают SeedWork
+напрямую через ссылки на проекты; внешние зависимости восстанавливаются обычным способом.
 
 ```powershell
-dotnet pack SeedWork.slnx -c Release -o artifacts/packages
-$seedworkFeed = (Resolve-Path artifacts/packages).Path
-New-Item -ItemType Directory -Force artifacts/tutorials | Out-Null
-$seedworkFeedXml = [System.Security.SecurityElement]::Escape($seedworkFeed)
-@"
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <clear />
-    <add key="SeedWorkLocal" value="$seedworkFeedXml" />
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-  </packageSources>
-</configuration>
-"@ | Set-Content artifacts/tutorials/NuGet.Config -Encoding utf8
 docker compose -p seedwork-messaging -f samples/Messaging/compose.yaml up -d --wait rabbitmq
 
 dotnet new console -n RabbitConsumer -o artifacts/tutorials/RabbitConsumer --framework net10.0
-dotnet add artifacts/tutorials/RabbitConsumer package SeedWork.Messaging.RabbitMQ --version 0.1.0 --no-restore
+dotnet add artifacts/tutorials/RabbitConsumer reference src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj
 dotnet add artifacts/tutorials/RabbitConsumer package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
 dotnet restore artifacts/tutorials/RabbitConsumer
 ```
@@ -150,12 +136,11 @@ Host сначала готовит топологию и только затем
 <a id="publisher"></a>
 ## 2. Отдельный издатель
 
-Создайте второй проект из корня репозитория. Оба проекта используют NuGet.Config,
-созданный в artifacts/tutorials при установке.
+Создайте второй проект из корня репозитория и добавьте ссылку на проект адаптера:
 
 ```powershell
 dotnet new console -n RabbitPublisher -o artifacts/tutorials/RabbitPublisher --framework net10.0
-dotnet add artifacts/tutorials/RabbitPublisher package SeedWork.Messaging.RabbitMQ --version 0.1.0 --no-restore
+dotnet add artifacts/tutorials/RabbitPublisher reference src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj
 dotnet add artifacts/tutorials/RabbitPublisher package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
 dotnet restore artifacts/tutorials/RabbitPublisher
 ```
@@ -377,6 +362,139 @@ foreach (var assembly in consumerAssemblies.Distinct())
 Для trimming/NativeAOT используйте ручной Consume и отдельно проверяйте совместимость
 JSON и клиента: автоматическое сканирование требует сохранённых типов и динамического кода.
 
+<a id="multi-contract"></a>
+## Один класс обрабатывает несколько типов сообщений
+
+В этом варианте один класс реализует два контракта. У каждого типа свой метод
+`ConsumeAsync`, endpoint, очередь и политика повторов. Сначала добавьте в проект получателя
+типы и класс ниже вместо `OrderConsumer` из первого примера; нужны
+`using Microsoft.Extensions.Logging;` и `using SeedWork.Messaging;`.
+
+```csharp
+public sealed record OrderCreated(Guid Id, decimal Amount);
+public sealed record OrderCancelled(Guid Id, string Reason);
+
+public sealed class OrderEventsConsumer(ILogger<OrderEventsConsumer> logger)
+    : IConsumer<OrderCreated>, IConsumer<OrderCancelled>
+{
+    public Task ConsumeAsync(MessageContext<OrderCreated> context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        logger.LogInformation("Создан заказ {OrderId}, сумма {Amount}",
+            context.Message.Id, context.Message.Amount);
+        return Task.CompletedTask;
+    }
+
+    public Task ConsumeAsync(MessageContext<OrderCancelled> context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        logger.LogInformation("Отменён заказ {OrderId}: {Reason}",
+            context.Message.Id, context.Message.Reason);
+        return Task.CompletedTask;
+    }
+}
+```
+
+### Вариант 1: ручная регистрация
+
+Внутри `AddRabbitMq` замените цепочку из первого примера на следующую. Для созданных
+заказов разрешены два повтора, для отменённых повторов нет. Отдельные очереди сохраняют
+независимую обработку и создают отдельные очереди ошибок с суффиксом `_error`.
+
+```csharp
+rabbit.Exchange("orders.v1", RabbitMqExchangeType.Topic)
+    .Consume<OrderCreated, OrderEventsConsumer>(
+        "orders-created-consumer", "billing.orders.created", "orders.v1",
+        bindingKey: "orders.created", configureRetry: retry => retry.MaxRetries = 2)
+    .Consume<OrderCancelled, OrderEventsConsumer>(
+        "orders-cancelled-consumer", "billing.orders.cancelled", "orders.v1",
+        bindingKey: "orders.cancelled");
+```
+
+### Вариант 2: два атрибута и один вызов сканирования
+
+Уберите ручные `Consume` и добавьте два атрибута непосредственно над объявлением
+`OrderEventsConsumer`. Политика повторов каждого типа задаётся отдельно:
+
+```csharp
+[RabbitMqConsumer(typeof(OrderCreated), Endpoint = "orders-created-consumer",
+    Queue = "billing.orders.created", Exchange = "orders.v1",
+    BindingKey = "orders.created", MaxRetries = 2)]
+[RabbitMqConsumer(typeof(OrderCancelled), Endpoint = "orders-cancelled-consumer",
+    Queue = "billing.orders.cancelled", Exchange = "orders.v1",
+    BindingKey = "orders.cancelled", MaxRetries = 0)]
+```
+
+Внутри `AddRabbitMq` после `Configure` используйте
+`rabbit.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly, builder.Configuration)`.
+Один вызов обнаружит обе подписки и объявит общий exchange типа Topic.
+Атрибуты указывают разные типы сообщений: два атрибута для одного и того же типа
+считаются дубликатом и вызывают ошибку регистрации.
+
+### Вариант 3: отдельный класс конфигурации для каждого типа
+
+Уберите атрибуты и ручные `Consume`, оставьте вызов сканирования из варианта 2.
+Добавьте в ту же сборку оба класса. Для второго типа показана замена имени очереди
+через конфигурацию приложения; она не влияет на первый тип.
+
+```csharp
+public sealed class CreatedConfiguration
+    : RabbitMqConsumerConfiguration<OrderCreated, OrderEventsConsumer>
+{
+    public override void Configure(RabbitMqConsumerOptions options, IConfiguration configuration)
+    {
+        options.Endpoint = "orders-created-consumer";
+        options.Queue = "billing.orders.created";
+        options.Exchange = "orders.v1";
+        options.ExchangeType = RabbitMqExchangeType.Topic;
+        options.BindingKey = "orders.created";
+        options.Retry.MaxRetries = 2;
+    }
+}
+
+public sealed class CancelledConfiguration
+    : RabbitMqConsumerConfiguration<OrderCancelled, OrderEventsConsumer>
+{
+    public override void Configure(RabbitMqConsumerOptions options, IConfiguration configuration)
+    {
+        options.Endpoint = "orders-cancelled-consumer";
+        options.Queue = configuration["Messaging:CancelledQueue"] ?? "billing.orders.cancelled";
+        options.Exchange = "orders.v1";
+        options.ExchangeType = RabbitMqExchangeType.Topic;
+        options.BindingKey = "orders.cancelled";
+        options.Retry = RetryOptions.NoRetry();
+    }
+}
+```
+
+Добавьте `using Microsoft.Extensions.Configuration;`. При указании другого имени
+`Messaging:CancelledQueue` изменится только вторая очередь. Оба класса конфигурации
+должны иметь публичный конструктор без параметров. Одна пара «тип — консумер» может
+иметь не более одного такого класса; для разных типов пары независимы.
+
+### Маршруты издателя для двух типов
+
+В отдельном издателе замените цепочку регистрации внутри `AddRabbitMq` на следующую.
+Контракт `OrderCancelled` должен быть доступен проекту издателя или объявлен там
+в совместимой с JSON форме:
+
+```csharp
+rabbit.Exchange("orders.v1")
+    .Publish<OrderCreated>("orders-created", "orders.v1", "orders.created")
+    .Publish<OrderCancelled>("orders-cancelled", "orders.v1", "orders.cancelled");
+```
+
+После `host.StartAsync()` используйте `IMessagePublisher` так же, как во втором примере:
+
+```csharp
+await publisher.PublishAsync("orders-created", new OrderCreated(Guid.NewGuid(), 1250m));
+await publisher.PublishAsync("orders-cancelled", new OrderCancelled(Guid.NewGuid(), "customer request"));
+```
+
+Это две независимые публикации. В каждом варианте библиотека регистрирует один concrete
+класс в DI как scoped; для каждой попытки обработки создаётся новый scope. Совпадение
+класса не объединяет очереди или политики ошибок.
+
 <a id="retry"></a>
 ## 9. Фиксированные повторы
 
@@ -545,8 +663,9 @@ AMQP declarations и также отклоняет несовместимые р
 <a id="connections"></a>
 ## 16. Несколько подключений и Kafka в одной шине
 
-Замените целиком единственный вызов AddSeedWorkMessaging. Для Kafka добавьте пакет
-SeedWork.Messaging.Kafka 0.1.0 и `using SeedWork.Messaging.Kafka;`. Пример — регистрация
+Замените целиком единственный вызов AddSeedWorkMessaging. Для Kafka добавьте ссылку
+на `src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj` через `dotnet add <проект> reference <путь>`
+и `using SeedWork.Messaging.Kafka;`. Пример — регистрация
 маршрутов издателя; очереди RabbitMQ предварительно создают получатели.
 
 ```csharp

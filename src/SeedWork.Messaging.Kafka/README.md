@@ -20,6 +20,7 @@
 - [6. Только класс конфигурации](#configuration)
 - [7. Класс поверх атрибута](#override)
 - [8. Сканирование Assembly](#assemblies)
+- [Один класс для нескольких типов сообщений](#multi-contract)
 - [9. Несколько экземпляров одной группы](#same-group)
 - [10. Две независимые группы](#different-groups)
 - [11. Общее объявление topic и ValidateOnly](#topology)
@@ -70,28 +71,14 @@ AutoOffsetReset=Earliest и запрет auto-create topic. Новая груп�
 <a id="setup"></a>
 ## Установка и локальный запуск
 
-PowerShell, из корня репозитория. Пакеты собираются в локальный источник; зависимости
-восстанавливаются с nuget.org. Публичная публикация SeedWork не предполагается.
+Команды PowerShell выполняются из корня репозитория. Примеры подключают SeedWork
+напрямую через ссылки на проекты; внешние зависимости восстанавливаются обычным способом.
 
 ```powershell
-dotnet pack SeedWork.slnx -c Release -o artifacts/packages
-$seedworkFeed = (Resolve-Path artifacts/packages).Path
-New-Item -ItemType Directory -Force artifacts/tutorials | Out-Null
-$seedworkFeedXml = [System.Security.SecurityElement]::Escape($seedworkFeed)
-@"
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <clear />
-    <add key="SeedWorkLocal" value="$seedworkFeedXml" />
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-  </packageSources>
-</configuration>
-"@ | Set-Content artifacts/tutorials/NuGet.Config -Encoding utf8
 docker compose -p seedwork-messaging -f samples/Messaging/compose.yaml up -d --wait kafka
 
 dotnet new console -n KafkaConsumer -o artifacts/tutorials/KafkaConsumer --framework net10.0
-dotnet add artifacts/tutorials/KafkaConsumer package SeedWork.Messaging.Kafka --version 0.1.0 --no-restore
+dotnet add artifacts/tutorials/KafkaConsumer reference src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj
 dotnet add artifacts/tutorials/KafkaConsumer package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
 dotnet restore artifacts/tutorials/KafkaConsumer
 ```
@@ -150,12 +137,11 @@ Host готовит topic до начала обработки. После ус�
 <a id="publisher"></a>
 ## 2. Отдельный издатель
 
-Создайте второй проект из корня репозитория. Оба проекта используют NuGet.Config,
-созданный в artifacts/tutorials при установке.
+Создайте второй проект из корня репозитория и добавьте ссылку на проект адаптера:
 
 ```powershell
 dotnet new console -n KafkaPublisher -o artifacts/tutorials/KafkaPublisher --framework net10.0
-dotnet add artifacts/tutorials/KafkaPublisher package SeedWork.Messaging.Kafka --version 0.1.0 --no-restore
+dotnet add artifacts/tutorials/KafkaPublisher reference src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj
 dotnet add artifacts/tutorials/KafkaPublisher package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
 dotnet restore artifacts/tutorials/KafkaPublisher
 ```
@@ -447,6 +433,142 @@ CreateMissing создаёт отсутствующий topic и проверя�
 Общие настройки SSL/SASL задаются через ClientConfig в Configure; адреса и секреты
 берутся из окружения приложения. После регистрации менять options нельзя.
 
+<a id="multi-contract"></a>
+## Один класс обрабатывает несколько типов сообщений
+
+Класс реализует два IConsumer-контракта, поэтому у каждого типа свой метод
+`ConsumeAsync`. Добавьте следующие объявления в проект получателя вместо
+`OrderConsumer` из первого примера:
+
+```csharp
+public sealed record OrderCreated(Guid Id, decimal Amount);
+public sealed record OrderCancelled(Guid Id, string Reason);
+
+public sealed class OrderEventsConsumer(ILogger<OrderEventsConsumer> logger)
+    : IConsumer<OrderCreated>, IConsumer<OrderCancelled>
+{
+    public Task ConsumeAsync(MessageContext<OrderCreated> context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        logger.LogInformation("Создан заказ {OrderId}, сумма {Amount}",
+            context.Message.Id, context.Message.Amount);
+        return Task.CompletedTask;
+    }
+
+    public Task ConsumeAsync(MessageContext<OrderCancelled> context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        logger.LogInformation("Отменён заказ {OrderId}: {Reason}",
+            context.Message.Id, context.Message.Reason);
+        return Task.CompletedTask;
+    }
+}
+```
+
+Для каждого типа ниже используется отдельный topic и endpoint. Общая group
+`billing-v1` допустима, поскольку пары topic/group различаются. Повторы одного
+endpoint не изменяют политику другого.
+
+### Вариант 1: ручная регистрация
+
+Внутри `AddKafka` замените цепочку из первого примера. Для созданного заказа
+разрешены два повтора; отменённый сразу приостанавливает свою партицию при ошибке.
+
+```csharp
+kafka.Topic("orders.created.v1", partitions: 2, replicationFactor: 1)
+    .Topic("orders.cancelled.v1", partitions: 2, replicationFactor: 1)
+    .Consume<OrderCreated, OrderEventsConsumer>(
+        "orders-created-consumer", "orders.created.v1", "billing-v1",
+        configureRetry: retry => retry.MaxRetries = 2)
+    .Consume<OrderCancelled, OrderEventsConsumer>(
+        "orders-cancelled-consumer", "orders.cancelled.v1", "billing-v1");
+```
+
+### Вариант 2: два атрибута и одно сканирование
+
+Удалите ручные `Consume` и `Topic`, добавьте два атрибута непосредственно над
+`OrderEventsConsumer`:
+
+```csharp
+[KafkaConsumer(typeof(OrderCreated), Endpoint = "orders-created-consumer",
+    Topic = "orders.created.v1", Group = "billing-v1",
+    Partitions = 2, ReplicationFactor = 1, MaxRetries = 2)]
+[KafkaConsumer(typeof(OrderCancelled), Endpoint = "orders-cancelled-consumer",
+    Topic = "orders.cancelled.v1", Group = "billing-v1",
+    Partitions = 2, ReplicationFactor = 1, MaxRetries = 0)]
+```
+
+Внутри `AddKafka` после `Configure` вызовите
+`kafka.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly, builder.Configuration)`.
+Сканирование создаст две подписки. Для одной пары «тип — консумер» повторный атрибут
+запрещён; для двух разных типов атрибуты работают независимо.
+
+### Вариант 3: два класса конфигурации
+
+Уберите атрибуты, оставьте одно сканирование и добавьте классы в ту же сборку.
+Параметр `Messaging:CancelledGroup` управляет только второй подпиской.
+
+```csharp
+public sealed class CreatedConfiguration
+    : KafkaConsumerConfiguration<OrderCreated, OrderEventsConsumer>
+{
+    public override void Configure(KafkaConsumerOptions options, IConfiguration configuration)
+    {
+        options.Endpoint = "orders-created-consumer";
+        options.Topic = "orders.created.v1";
+        options.Group = "billing-v1";
+        options.Partitions = 2;
+        options.ReplicationFactor = 1;
+        options.Retry.MaxRetries = 2;
+    }
+}
+
+public sealed class CancelledConfiguration
+    : KafkaConsumerConfiguration<OrderCancelled, OrderEventsConsumer>
+{
+    public override void Configure(KafkaConsumerOptions options, IConfiguration configuration)
+    {
+        options.Endpoint = "orders-cancelled-consumer";
+        options.Topic = "orders.cancelled.v1";
+        options.Group = configuration["Messaging:CancelledGroup"] ?? "billing-v1";
+        options.Partitions = 2;
+        options.ReplicationFactor = 1;
+        options.Retry = RetryOptions.NoRetry();
+    }
+}
+```
+
+Добавьте `using Microsoft.Extensions.Configuration;`. Публичный конструктор без
+параметров нужен каждому классу конфигурации. При одинаковой group два разных topic
+остаются независимыми подписками. Для одной пары «тип — консумер» допускается один
+класс конфигурации; для разных типов классы различаются generic-аргументом.
+
+### Маршруты издателя для двух типов
+
+В отдельном издателе замените цепочку регистрации внутри `AddKafka` на следующую.
+Тип `OrderCancelled` должен быть доступен издателю или объявлен им в совместимой
+с JSON форме:
+
+```csharp
+kafka.Topic("orders.created.v1", 2, 1)
+    .Topic("orders.cancelled.v1", 2, 1)
+    .Publish<OrderCreated>("orders-created", "orders.created.v1")
+    .Publish<OrderCancelled>("orders-cancelled", "orders.cancelled.v1");
+```
+
+После `host.StartAsync()` используйте `IMessagePublisher` так же, как во втором примере:
+
+```csharp
+await publisher.PublishAsync("orders-created", new OrderCreated(Guid.NewGuid(), 1250m),
+    new PublishOptions { Key = "customer-42" });
+await publisher.PublishAsync("orders-cancelled", new OrderCancelled(Guid.NewGuid(), "customer request"),
+    new PublishOptions { Key = "customer-42" });
+```
+
+Это две независимые публикации. Один concrete-класс консумера регистрируется в DI
+как scoped; для каждой попытки каждого типа создаётся новый scope. Изоляция обработки
+и окончательной ошибки определяется topic/partition каждого endpoint, а не общим классом.
+
 <a id="retry"></a>
 ## 12. Фиксированные повторы
 
@@ -534,7 +656,8 @@ Error topic, пропуск ошибочной записи и публичны�
 ## 15. Несколько подключений и RabbitMQ в одной шине
 
 Замените единственный вызов AddSeedWorkMessaging в приложении издателя. Для RabbitMQ
-добавьте пакет SeedWork.Messaging.RabbitMQ 0.1.0 и `using SeedWork.Messaging.RabbitMQ;`.
+добавьте ссылку на `src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj`
+через `dotnet add <проект> reference <путь>` и `using SeedWork.Messaging.RabbitMQ;`.
 Задайте SalesKafka, AuditKafka и RabbitMQ в конфигурации приложения.
 
 ```csharp

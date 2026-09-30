@@ -50,7 +50,6 @@ Consumer поддерживает `--RunSeconds=30` для ограниченн�
 docker compose -p seedwork-messaging -f samples/Messaging/compose.yaml up -d --wait rabbitmq kafka
 $env:SEEDWORK_BROKER_TESTS = '1'
 dotnet test SeedWork.slnx
-dotnet pack SeedWork.slnx -c Release -o artifacts/packages
 docker compose -p seedwork-messaging -f samples/Messaging/compose.yaml --profile telemetry down
 ```
 
