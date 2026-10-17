@@ -86,36 +86,23 @@ public sealed class RabbitMqBuilder
         return this;
     }
 
-    /// <summary>Находит в переданной сборке консумеры с атрибутом или конфигурацией RabbitMQ и регистрирует их подписки.</summary>
-    /// <remarks>Конфигурация переопределяет атрибут. Ненастроенные консумеры пропускаются; топология берётся из итоговых настроек.</remarks>
+    /// <summary>Находит в переданной сборке классы конфигурации консумеров RabbitMQ и регистрирует их подписки.</summary>
+    /// <remarks>Консумеры без конфигурации пропускаются; топология берётся из итоговых настроек.</remarks>
     [RequiresUnreferencedCode("Consumer scanning requires untrimmed consumer and configuration types. Use explicit Consume registration when trimming.")]
     [RequiresDynamicCode("Consumer scanning closes generic registration methods at runtime. Use explicit Consume registration for NativeAOT.")]
     public RabbitMqBuilder AddConsumersFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        var registrations = ConsumerDiscovery.Find<RabbitMqConsumerAttribute>(assembly,
-            typeof(RabbitMqConsumerConfiguration<,>), a => a.MessageType);
+        var registrations = ConsumerDiscovery.Find(assembly, typeof(RabbitMqConsumerConfiguration<,>));
         foreach (var registration in registrations)
         {
             var pair = (registration.Consumer, registration.Message);
             if (_registeredConsumers.Contains(pair))
                 throw new InvalidOperationException($"Consumer '{pair.Consumer.FullName}' for message '{pair.Message.FullName}' is already registered on '{_name}'.");
-            var attribute = (RabbitMqConsumerAttribute?)registration.Attribute;
             var options = new RabbitMqConsumerOptions
             {
-                Endpoint = attribute?.Endpoint ?? ConsumerDiscovery.EndpointName(_name, registration),
-                Queue = attribute?.Queue, Exchange = attribute?.Exchange, ExchangeType = attribute?.ExchangeType ?? RabbitMqExchangeType.Topic,
-                BindingKey = attribute?.BindingKey ?? "#", ErrorQueue = attribute?.ErrorQueue
+                Endpoint = ConsumerDiscovery.EndpointName(_name, registration)
             };
-            if (attribute is not null)
-            {
-                options.Retry.MaxRetries = attribute.MaxRetries;
-                options.Retry.Interval = TimeSpan.FromMilliseconds(attribute.IntervalMilliseconds);
-                options.Retry.MaxInterval = TimeSpan.FromMilliseconds(attribute.MaxIntervalMilliseconds);
-                options.Retry.Exponential = attribute.Exponential;
-                options.Retry.Handle.UnionWith(attribute.Handle ?? throw new ArgumentException("Handle cannot be null."));
-                options.Retry.Ignore.UnionWith(attribute.Ignore ?? throw new ArgumentException("Ignore cannot be null."));
-            }
             ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options);
             if (string.IsNullOrWhiteSpace(options.Endpoint) || string.IsNullOrWhiteSpace(options.Queue) ||
                 string.IsNullOrWhiteSpace(options.Exchange) || options.BindingKey is null ||

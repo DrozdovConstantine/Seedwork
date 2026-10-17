@@ -55,7 +55,7 @@ public sealed class BrokerTests
     }
 
     [BrokerFact]
-    public async Task BothTransports_ScannedConsumers_ApplyAttributesAndConfigurations()
+    public async Task BothTransports_ScannedConsumers_ApplyConfigurations()
     {
         await using var host = Build(scan: true);
         await host.StartAsync();
@@ -286,7 +286,7 @@ public sealed class BrokerTests
     public Task NoRetry_DefaultManualRegistration_FinalizesFirstFailure() => VerifyNoRetry(false);
 
     [BrokerFact]
-    public Task NoRetry_ConfigurationReplacesAttribute_FinalizesFirstFailure() => VerifyNoRetry(true);
+    public Task NoRetry_ScannedConfiguration_FinalizesFirstFailure() => VerifyNoRetry(true);
 
     private async Task VerifyNoRetry(bool scan)
     {
@@ -400,8 +400,6 @@ public sealed class BrokerTests
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
-    [RabbitMqConsumer(typeof(Event), Queue = "attribute-queue", Exchange = "attribute-exchange", MaxRetries = 2)]
-    [KafkaConsumer(typeof(Event), Topic = "attribute-topic", Group = "attribute-group", MaxRetries = 2)]
     public sealed class ProbeConsumer(Probe state) : IConsumer<Event>
     {
         public async Task ConsumeAsync(MessageContext<Event> context, CancellationToken cancellationToken)

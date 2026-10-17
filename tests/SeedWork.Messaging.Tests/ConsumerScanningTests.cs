@@ -13,10 +13,11 @@ public sealed class ConsumerScanningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AttributeOnly_RegistersScopedConsumer(bool kafka)
+    public async Task Configuration_RegistersScopedConsumer(bool kafka)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        Configure(fixture, kafka, consumer);
         var services = Register(kafka, fixture, declareTopology: false);
         var registration = Assert.Single(services, s => s.ServiceType == consumer);
         Assert.Equal(ServiceLifetime.Scoped, registration.Lifetime);
@@ -26,60 +27,35 @@ public sealed class ConsumerScanningTests
         var resolved = Assert.IsAssignableFrom<IConsumer<Message>>(scope.ServiceProvider.GetRequiredService(consumer));
         Assert.Same(resolved, scope.ServiceProvider.GetRequiredService(consumer));
         Assert.NotSame(resolved, anotherScope.ServiceProvider.GetRequiredService(consumer));
-        await resolved.ConsumeAsync(new(new Message(), null, null, null, new Dictionary<string, string>(), "test", 1), default);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ConfigurationOnly_UsesConstantValues(bool kafka)
+    public void Configuration_UsesDefaultsAndDerivedConfiguration(bool kafka)
     {
         var fixture = new Fixture();
         var consumer = fixture.Consumer(typeof(NoopConsumer));
         fixture.Configuration(kafka, consumer, typeof(Message), options =>
         {
-            if (options is RabbitMqConsumerOptions rabbit) { rabbit.Queue = "orders"; rabbit.Exchange = "events"; }
-            if (options is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = "orders"; k.Partitions = 2; k.ReplicationFactor = 1; }
+            Assert.Equal((kafka ? "kafka" : "rabbit") + "/" + consumer.FullName + "/" + typeof(Message).FullName,
+                options is KafkaConsumerOptions k ? k.Endpoint : ((RabbitMqConsumerOptions)options).Endpoint);
+            var retry = options is KafkaConsumerOptions kafkaOptions ? kafkaOptions.Retry : ((RabbitMqConsumerOptions)options).Retry;
+            Assert.Equal(0, retry.MaxRetries);
+            Assert.Empty(retry.Handle);
+            if (options is KafkaConsumerOptions ko) { ko.Topic = "events"; ko.Group = "orders"; ko.Partitions = 2; ko.ReplicationFactor = 1; }
+            else { var ro = (RabbitMqConsumerOptions)options; Assert.Equal("#", ro.BindingKey); Assert.Equal(RabbitMqExchangeType.Topic, ro.ExchangeType); ro.Queue = "orders"; ro.Exchange = "events"; }
         }, inherit: true);
         Assert.Contains(Register(kafka, fixture, declareTopology: false), s => s.ServiceType == consumer);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Configuration_OverridesAttribute_AndPreservesUntouchedValues(bool kafka)
-    {
-        var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        fixture.Configuration(kafka, consumer, typeof(Message), options =>
-        {
-            if (options is RabbitMqConsumerOptions r)
-            {
-                Assert.Equal("events", r.Exchange);
-                Assert.Equal("orders", r.Queue);
-                Assert.Equal("#", r.BindingKey);
-                Assert.Equal("rabbit/" + consumer.FullName + "/" + typeof(Message).FullName, r.Endpoint);
-                r.Exchange = "override";
-                r.Retry.MaxRetries = 7;
-            }
-            else if (options is KafkaConsumerOptions k)
-            {
-                Assert.Equal("events", k.Topic);
-                Assert.Equal("orders", k.Group);
-                Assert.Equal("kafka/" + consumer.FullName + "/" + typeof(Message).FullName, k.Endpoint);
-                k.Topic = "override";
-                k.Retry.MaxRetries = 7;
-            }
-        });
-        // Совместное использование класса конфигурации и ручного объявления топологии.
-        Assert.Contains(Register(kafka, fixture, destination: "override"), s => s.ServiceType == consumer);
     }
 
     [Fact]
     public void DifferentTransports_ConfigureSameConsumerIndependently()
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(false), Attribute(true));
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        Configure(fixture, false, consumer);
+        Configure(fixture, true, consumer);
         var services = new ServiceCollection();
         services.AddSeedWorkMessaging(b =>
         {
@@ -96,7 +72,9 @@ public sealed class ConsumerScanningTests
     public void MultipleContracts_RegisterEachPair(bool kafka)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(MultiConsumer), Attribute(kafka), Attribute(kafka, typeof(OtherMessage), "other"));
+        var consumer = fixture.Consumer(typeof(MultiConsumer));
+        Configure(fixture, kafka, consumer);
+        Configure(fixture, kafka, consumer, typeof(OtherMessage), "other");
         var services = Register(kafka, fixture);
         Assert.Single(services, s => s.ServiceType == consumer);
     }
@@ -104,27 +82,17 @@ public sealed class ConsumerScanningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void UnconfiguredAbstractOpenGenericAndInheritedAttributes_AreSkipped(bool kafka)
+    public void UnconfiguredAndOtherTransportConsumers_AreSkipped(bool kafka)
     {
         var fixture = new Fixture();
         var unconfigured = fixture.Consumer(typeof(NoopConsumer));
-        var otherTransport = fixture.Consumer(typeof(NoopConsumer), Attribute(!kafka));
-        var inheritedAttribute = fixture.Consumer(typeof(AttributedBase));
-        var abstractType = fixture.Consumer(typeof(NoopConsumer), [Attribute(kafka)], abstractType: true);
-        var openType = fixture.Consumer(typeof(NoopConsumer), [Attribute(kafka)], openGeneric: true);
+        var otherTransport = fixture.Consumer(typeof(NoopConsumer));
+        Configure(fixture, !kafka, otherTransport);
+        var configured = fixture.Consumer(typeof(NoopConsumer));
+        Configure(fixture, kafka, configured);
         var services = Register(kafka, fixture);
-        foreach (var skipped in new[] { unconfigured, otherTransport, inheritedAttribute, abstractType, openType })
-            Assert.DoesNotContain(services, s => s.ServiceType == skipped);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DuplicateAttributes_AreRejected(bool kafka)
-    {
-        var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), Attribute(kafka), Attribute(kafka));
-        Assert.Contains("Duplicate", Assert.Throws<InvalidOperationException>(() => Register(kafka, fixture)).Message);
+        Assert.DoesNotContain(services, s => s.ServiceType == unconfigured || s.ServiceType == otherTransport);
+        Assert.Contains(services, s => s.ServiceType == configured);
     }
 
     [Theory]
@@ -133,20 +101,20 @@ public sealed class ConsumerScanningTests
     public void DuplicateConfigurations_AreRejected(bool kafka)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        fixture.Configuration(kafka, consumer, typeof(Message), _ => { });
-        fixture.Configuration(kafka, consumer, typeof(Message), _ => { });
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        Configure(fixture, kafka, consumer);
+        Configure(fixture, kafka, consumer);
         Assert.Contains("Duplicate configurations", Assert.Throws<InvalidOperationException>(() => Register(kafka, fixture)).Message);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void AttributeForUnimplementedContract_IsRejected(bool kafka)
+    public void ConfigurationForUnimplementedContract_IsRejected(bool kafka)
     {
         var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), Attribute(kafka, typeof(OtherMessage)));
-        Assert.Contains("does not implement", Assert.Throws<InvalidOperationException>(() => Register(kafka, fixture)).Message);
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        Assert.Throws<ArgumentException>(() => fixture.Configuration(kafka, consumer, typeof(OtherMessage), _ => { }));
     }
 
     [Theory]
@@ -155,18 +123,17 @@ public sealed class ConsumerScanningTests
     public void IncompleteSettingsAndInvalidRetry_AreRejected(bool kafka)
     {
         var incomplete = new Fixture();
-        incomplete.Consumer(typeof(NoopConsumer), kafka
-            ? new KafkaConsumerAttribute(typeof(Message))
-            : new RabbitMqConsumerAttribute(typeof(Message)));
+        var consumer = incomplete.Consumer(typeof(NoopConsumer));
+        incomplete.Configuration(kafka, consumer, typeof(Message), _ => { });
         Assert.Contains("Incomplete", Assert.Throws<InvalidOperationException>(() => Register(kafka, incomplete)).Message);
-        var invalidRetry = new Fixture();
-        var consumer = invalidRetry.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        invalidRetry.Configuration(kafka, consumer, typeof(Message), o =>
+        var invalid = new Fixture();
+        consumer = invalid.Consumer(typeof(NoopConsumer));
+        invalid.Configuration(kafka, consumer, typeof(Message), o =>
         {
-            if (o is KafkaConsumerOptions k) k.Retry.MaxRetries = -1;
-            if (o is RabbitMqConsumerOptions r) r.Retry.MaxRetries = -1;
+            if (o is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = "orders"; k.Retry.MaxRetries = -1; }
+            else { var r = (RabbitMqConsumerOptions)o; r.Queue = "orders"; r.Exchange = "events"; r.Retry.MaxRetries = -1; }
         });
-        Assert.Throws<ArgumentException>(() => Register(kafka, invalidRetry));
+        Assert.Throws<ArgumentException>(() => Register(kafka, invalid));
     }
 
     [Theory]
@@ -175,7 +142,7 @@ public sealed class ConsumerScanningTests
     public void ConfigurationWithoutPublicParameterlessConstructor_IsRejected(bool kafka)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
         fixture.Configuration(kafka, consumer, typeof(Message), _ => { }, publicConstructor: false);
         Assert.Contains("public parameterless constructor", Assert.Throws<InvalidOperationException>(() => Register(kafka, fixture)).Message);
     }
@@ -186,7 +153,7 @@ public sealed class ConsumerScanningTests
     public void ConfigurationExceptions_AreNotWrapped(bool kafka)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
         var original = new FormatException("configuration failure");
         fixture.Configuration(kafka, consumer, typeof(Message), _ => throw original);
         Assert.Same(original, Assert.Throws<FormatException>(() => Register(kafka, fixture)));
@@ -202,9 +169,9 @@ public sealed class ConsumerScanningTests
     public void DuplicateScannedAndManualRegistrations_AreRejected(bool kafka, string order)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
-        var services = new ServiceCollection();
-        Assert.Throws<InvalidOperationException>(() => services.AddSeedWorkMessaging(b =>
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        Configure(fixture, kafka, consumer);
+        Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddSeedWorkMessaging(b =>
         {
             void RegisterPair(object builder)
             {
@@ -218,47 +185,26 @@ public sealed class ConsumerScanningTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task AttributeRetry_IsApplied_AndConfigurationCanReplaceFilters(bool kafka, bool configure)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConfigurationRetry_IsApplied(bool kafka)
     {
         var fixture = new Fixture();
-        Attribute attribute = kafka
-            ? new KafkaConsumerAttribute(typeof(Message)) { Topic = "events", Group = "orders", Partitions = 2, ReplicationFactor = 1,
-                MaxRetries = 2, IntervalMilliseconds = 0, MaxIntervalMilliseconds = 15, Exponential = true,
-                Handle = [typeof(ArgumentException)], Ignore = [typeof(InvalidOperationException)] }
-            : new RabbitMqConsumerAttribute(typeof(Message)) { Queue = "orders", Exchange = "events",
-                MaxRetries = 2, IntervalMilliseconds = 0, MaxIntervalMilliseconds = 15, Exponential = true,
-                Handle = [typeof(ArgumentException)], Ignore = [typeof(InvalidOperationException)] };
-        var consumer = fixture.Consumer(typeof(FailingConsumer), attribute);
-        if (configure) fixture.Configuration(kafka, consumer, typeof(Message), o =>
+        var consumer = fixture.Consumer(typeof(FailingConsumer));
+        fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
-            var retry = o is KafkaConsumerOptions k ? k.Retry : ((RabbitMqConsumerOptions)o).Retry;
-            Assert.Equal(2, retry.MaxRetries);
-            Assert.Equal(TimeSpan.Zero, retry.Interval);
-            Assert.Equal(TimeSpan.FromMilliseconds(15), retry.MaxInterval);
-            Assert.True(retry.Exponential);
-            Assert.Contains(typeof(ArgumentException), retry.Handle);
-            Assert.Contains(typeof(InvalidOperationException), retry.Ignore);
-            retry.Handle.Clear();
-            retry.Ignore.Clear();
+            RetryOptions retry;
+            if (o is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = "orders"; retry = k.Retry; }
+            else { var r = (RabbitMqConsumerOptions)o; r.Queue = "orders"; r.Exchange = "events"; retry = r.Retry; }
+            retry.MaxRetries = 2;
+            retry.Interval = TimeSpan.Zero;
+            retry.MaxInterval = TimeSpan.FromMilliseconds(15);
+            retry.Exponential = true;
         });
-        object? captured = null;
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSeedWorkMessaging(b =>
-        {
-            if (kafka) b.AddKafka("k", k => { k.Configure(o => o.Connection = KafkaConnection()); Scan(k, fixture.Marker); captured = k; });
-            else b.AddRabbitMq("r", r => { r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }); Scan(r, fixture.Marker); captured = r; });
-        });
-        var endpoints = (System.Collections.IEnumerable)captured!.GetType().GetProperty("Endpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!;
-        var endpoint = Assert.Single(endpoints.Cast<object>());
-        var dispatch = (Func<TransportMessage, ConsumerDispatcher, CancellationToken, Task<ConsumerFailure?>>)endpoint.GetType().GetProperty("Dispatch")!.GetValue(endpoint)!;
+        var (services, endpoint) = BuildEndpoint(kafka, fixture);
         await using var provider = services.BuildServiceProvider();
-        var failure = await dispatch(new("{}"u8.ToArray(), null, new Dictionary<string, string>()), provider.GetRequiredService<ConsumerDispatcher>(), default);
-        Assert.Equal(configure ? 3 : 1, failure!.Attempts);
+        var failure = await Dispatch(endpoint, provider);
+        Assert.Equal(3, failure.Attempts);
     }
 
     [Theory]
@@ -273,12 +219,15 @@ public sealed class ConsumerScanningTests
     public void SharedTopology_IsOrderIndependent(bool kafka, bool manualFirst, bool conflict)
     {
         var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), kafka
-            ? new KafkaConsumerAttribute(typeof(Message)) { Topic = "events", Group = "orders", Partitions = 2, ReplicationFactor = 1 }
-            : new RabbitMqConsumerAttribute(typeof(Message)) { Exchange = "events", ExchangeType = RabbitMqExchangeType.Direct, Queue = "orders" });
-        fixture.Consumer(typeof(NoopConsumer), kafka
-            ? new KafkaConsumerAttribute(typeof(Message)) { Topic = "events", Group = "other" }
-            : new RabbitMqConsumerAttribute(typeof(Message)) { Exchange = "events", ExchangeType = RabbitMqExchangeType.Direct, Queue = "other" });
+        foreach (var group in new[] { "orders", "other" })
+        {
+            var consumer = fixture.Consumer(typeof(NoopConsumer));
+            fixture.Configuration(kafka, consumer, typeof(Message), o =>
+            {
+                if (o is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = group; if (group == "orders") { k.Partitions = 2; k.ReplicationFactor = 1; } }
+                else { var r = (RabbitMqConsumerOptions)o; r.Exchange = "events"; r.Queue = group; r.ExchangeType = RabbitMqExchangeType.Direct; }
+            });
+        }
         void RegisterTopology() => new ServiceCollection().AddSeedWorkMessaging(b =>
         {
             if (kafka) b.AddKafka("k", k =>
@@ -307,8 +256,12 @@ public sealed class ConsumerScanningTests
     public void Kafka_MissingOrInvalidTopology_IsRejected(int partitions, short replicas)
     {
         var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), new KafkaConsumerAttribute(typeof(Message))
-            { Topic = "events", Group = "orders", Partitions = partitions, ReplicationFactor = replicas });
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        fixture.Configuration(true, consumer, typeof(Message), o =>
+        {
+            var k = (KafkaConsumerOptions)o;
+            k.Topic = "events"; k.Group = "orders"; k.Partitions = partitions; k.ReplicationFactor = replicas;
+        });
         Assert.Throws<ArgumentException>(() => Register(true, fixture, declareTopology: false));
     }
 
@@ -324,38 +277,17 @@ public sealed class ConsumerScanningTests
         }));
     }
 
-    public abstract class FailingConsumer : IConsumer<Message>
-    {
-        public Task ConsumeAsync(MessageContext<Message> context, CancellationToken cancellationToken)
-            => throw new InvalidOperationException("retry probe");
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Configuration_CanReplaceEverySubscriptionAndTopologyField(bool kafka)
+    public void Configuration_CanSetEverySubscriptionAndTopologyField(bool kafka)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), kafka
-            ? new KafkaConsumerAttribute(typeof(Message)) { Endpoint = "old", Topic = "old", Group = "old", Partitions = 1, ReplicationFactor = 1 }
-            : new RabbitMqConsumerAttribute(typeof(Message)) { Endpoint = "old", Exchange = "old", ExchangeType = RabbitMqExchangeType.Fanout, Queue = "old", BindingKey = "old", ErrorQueue = "old_error" });
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
         fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
-            RetryOptions retry;
-            if (o is KafkaConsumerOptions k)
-            {
-                k.Endpoint = "new"; k.Topic = "new"; k.Group = "new"; k.Partitions = 4; k.ReplicationFactor = 2;
-                retry = k.Retry;
-            }
-            else
-            {
-                var r = (RabbitMqConsumerOptions)o;
-                r.Endpoint = "new"; r.Queue = "new"; r.Exchange = "new"; r.ExchangeType = RabbitMqExchangeType.Direct;
-                r.BindingKey = "new.key"; r.ErrorQueue = "new.error";
-                retry = r.Retry;
-            }
-            retry.MaxRetries = 0; retry.Interval = TimeSpan.Zero; retry.MaxInterval = TimeSpan.Zero;
-            retry.Exponential = true; retry.Handle.Add(typeof(Exception)); retry.Ignore.Add(typeof(FormatException));
+            if (o is KafkaConsumerOptions k) { k.Endpoint = "new"; k.Topic = "new"; k.Group = "new"; k.Partitions = 4; k.ReplicationFactor = 2; }
+            else { var r = (RabbitMqConsumerOptions)o; r.Endpoint = "new"; r.Queue = "new"; r.Exchange = "new"; r.ExchangeType = RabbitMqExchangeType.Direct; r.BindingKey = "new.key"; r.ErrorQueue = "new.error"; }
         });
         object? captured = null;
         new ServiceCollection().AddSeedWorkMessaging(b =>
@@ -383,22 +315,8 @@ public sealed class ConsumerScanningTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void InvalidAttributeRetry_IsRejected(bool kafka)
-    {
-        var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), kafka
-            ? new KafkaConsumerAttribute(typeof(Message)) { Topic = "events", Group = "orders", MaxRetries = -1 }
-            : new RabbitMqConsumerAttribute(typeof(Message)) { Queue = "orders", Exchange = "events", MaxRetries = -1 });
-        Assert.Throws<ArgumentException>(() => Register(kafka, fixture));
-    }
-
-    [Theory]
     [InlineData(false, "manual")]
     [InlineData(true, "manual")]
-    [InlineData(false, "attribute")]
-    [InlineData(true, "attribute")]
     [InlineData(false, "configuration")]
     [InlineData(true, "configuration")]
     [InlineData(false, "replace")]
@@ -406,48 +324,24 @@ public sealed class ConsumerScanningTests
     public async Task NoRetry_AllRegistrationPaths_InvokeConsumerOnce(bool kafka, string mode)
     {
         var fixture = new Fixture();
-        var attribute = Attribute(kafka);
-        if (mode == "replace")
+        var consumer = fixture.Consumer(typeof(FailingConsumer));
+        if (mode != "manual") fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
-            if (attribute is KafkaConsumerAttribute k) { k.MaxRetries = 5; k.Handle = [typeof(Exception)]; }
-            if (attribute is RabbitMqConsumerAttribute r) { r.MaxRetries = 5; r.Ignore = [typeof(FormatException)]; }
-        }
-        var consumer = fixture.Consumer(typeof(FailingConsumer), mode is "manual" or "configuration" ? [] : [attribute]);
-        if (mode is "configuration" or "replace") fixture.Configuration(kafka, consumer, typeof(Message), o =>
-        {
-            if (o is KafkaConsumerOptions k)
+            RetryOptions retry;
+            if (o is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = "orders"; retry = k.Retry; }
+            else { var r = (RabbitMqConsumerOptions)o; r.Exchange = "events"; r.Queue = "orders"; retry = r.Retry; }
+            if (mode == "replace")
             {
-                k.Topic = "events"; k.Group = "orders"; k.Partitions = 2; k.ReplicationFactor = 1;
-                if (mode == "replace") k.Retry = RetryOptions.NoRetry();
-                Assert.Empty(k.Retry.Handle); Assert.Empty(k.Retry.Ignore);
-            }
-            else
-            {
-                var r = (RabbitMqConsumerOptions)o;
-                r.Exchange = "events"; r.Queue = "orders";
-                if (mode == "replace") r.Retry = RetryOptions.NoRetry();
-                Assert.Empty(r.Retry.Handle); Assert.Empty(r.Retry.Ignore);
+                retry.MaxRetries = 5;
+                retry.Handle.Add(typeof(Exception));
+                if (o is KafkaConsumerOptions ko) ko.Retry = RetryOptions.NoRetry();
+                else ((RabbitMqConsumerOptions)o).Retry = RetryOptions.NoRetry();
             }
         });
-        object? captured = null;
-        var services = new ServiceCollection();
-        services.AddSeedWorkMessaging(b =>
-        {
-            void RegisterConsumer(object builder)
-            {
-                captured = builder;
-                if (mode == "manual") Manual(builder, consumer);
-                else Scan(builder, fixture.Marker);
-            }
-            if (kafka) b.AddKafka("k", k => { Prepare(k); RegisterConsumer(k); });
-            else b.AddRabbitMq("r", r => { Prepare(r); RegisterConsumer(r); });
-        });
-        var endpoints = (System.Collections.IEnumerable)captured!.GetType().GetProperty("Endpoints", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(captured)!;
-        var endpoint = Assert.Single(endpoints.Cast<object>());
-        var dispatch = (Func<TransportMessage, ConsumerDispatcher, CancellationToken, Task<ConsumerFailure?>>)endpoint.GetType().GetProperty("Dispatch")!.GetValue(endpoint)!;
+        var (services, endpoint) = mode == "manual" ? BuildManualEndpoint(kafka, consumer) : BuildEndpoint(kafka, fixture);
         await using var provider = services.BuildServiceProvider();
-        var failure = await dispatch(new("{}"u8.ToArray(), null, new Dictionary<string, string>()), provider.GetRequiredService<ConsumerDispatcher>(), default);
-        Assert.IsType<InvalidOperationException>(failure!.Exception);
+        var failure = await Dispatch(endpoint, provider);
+        Assert.IsType<InvalidOperationException>(failure.Exception);
         Assert.Equal(1, failure.Attempts);
     }
 
@@ -470,11 +364,11 @@ public sealed class ConsumerScanningTests
     public void NullRetry_ReportsConsumerConfigurationError(bool kafka)
     {
         var fixture = new Fixture();
-        var consumer = fixture.Consumer(typeof(NoopConsumer), Attribute(kafka));
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
         fixture.Configuration(kafka, consumer, typeof(Message), o =>
         {
-            if (o is KafkaConsumerOptions k) k.Retry = null!;
-            else ((RabbitMqConsumerOptions)o).Retry = null!;
+            if (o is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = "orders"; k.Retry = null!; }
+            else { var r = (RabbitMqConsumerOptions)o; r.Exchange = "events"; r.Queue = "orders"; r.Retry = null!; }
         });
         var error = Assert.Throws<InvalidOperationException>(() => Register(kafka, fixture));
         Assert.Contains("RetryOptions.NoRetry()", error.Message);
@@ -488,8 +382,8 @@ public sealed class ConsumerScanningTests
     public void ExchangeEnum_MapsToBrokerType(RabbitMqExchangeType type, string expected)
     {
         var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), new RabbitMqConsumerAttribute(typeof(Message))
-            { Queue = "orders", Exchange = "events", ExchangeType = type });
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        fixture.Configuration(false, consumer, typeof(Message), o => { var r = (RabbitMqConsumerOptions)o; r.Queue = "orders"; r.Exchange = "events"; r.ExchangeType = type; });
         RabbitMqBuilder? captured = null;
         new ServiceCollection().AddSeedWorkMessaging(b => b.AddRabbitMq("r", r =>
         {
@@ -506,7 +400,8 @@ public sealed class ConsumerScanningTests
     public void DefaultTopic_ConflictsWithExplicitDirect(bool manualFirst)
     {
         var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), Attribute(false));
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        Configure(fixture, false, consumer);
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddSeedWorkMessaging(b => b.AddRabbitMq("r", r =>
         {
             r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; });
@@ -522,14 +417,54 @@ public sealed class ConsumerScanningTests
     public void UnknownExchangeEnum_IsRejected(bool scan)
     {
         var fixture = new Fixture();
-        fixture.Consumer(typeof(NoopConsumer), new RabbitMqConsumerAttribute(typeof(Message))
-            { Queue = "orders", Exchange = "events", ExchangeType = (RabbitMqExchangeType)999 });
+        var consumer = fixture.Consumer(typeof(NoopConsumer));
+        fixture.Configuration(false, consumer, typeof(Message), o => { var r = (RabbitMqConsumerOptions)o; r.Queue = "orders"; r.Exchange = "events"; r.ExchangeType = (RabbitMqExchangeType)999; });
         Assert.Throws<ArgumentOutOfRangeException>(() => new ServiceCollection().AddSeedWorkMessaging(b => b.AddRabbitMq("r", r =>
         {
             r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; });
             if (scan) Scan(r, fixture.Marker);
             else r.Exchange("events", (RabbitMqExchangeType)999);
         })));
+    }
+
+    public abstract class FailingConsumer : IConsumer<Message>
+    {
+        public Task ConsumeAsync(MessageContext<Message> context, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("retry probe");
+    }
+
+    private static (ServiceCollection Services, object Endpoint) BuildEndpoint(bool kafka, Fixture fixture)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        object? captured = null;
+        services.AddSeedWorkMessaging(b =>
+        {
+            if (kafka) b.AddKafka("k", k => { k.Configure(o => o.Connection = KafkaConnection()).Topic("events", 2, 1); Scan(k, fixture.Marker); captured = k; });
+            else b.AddRabbitMq("r", r => { r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }).Exchange("events"); Scan(r, fixture.Marker); captured = r; });
+        });
+        var endpoints = (System.Collections.IEnumerable)captured!.GetType().GetProperty("Endpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!;
+        return (services, Assert.Single(endpoints.Cast<object>()));
+    }
+
+    private static (ServiceCollection Services, object Endpoint) BuildManualEndpoint(bool kafka, Type consumer)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        object? captured = null;
+        services.AddSeedWorkMessaging(b =>
+        {
+            if (kafka) b.AddKafka("k", k => { k.Configure(o => o.Connection = KafkaConnection()).Topic("events", 2, 1); Manual(k, consumer); captured = k; });
+            else b.AddRabbitMq("r", r => { r.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }).Exchange("events"); Manual(r, consumer); captured = r; });
+        });
+        var endpoints = (System.Collections.IEnumerable)captured!.GetType().GetProperty("Endpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!;
+        return (services, Assert.Single(endpoints.Cast<object>()));
+    }
+
+    private static async Task<ConsumerFailure> Dispatch(object endpoint, IServiceProvider provider)
+    {
+        var dispatch = (Func<TransportMessage, ConsumerDispatcher, CancellationToken, Task<ConsumerFailure?>>)endpoint.GetType().GetProperty("Dispatch")!.GetValue(endpoint)!;
+        return (await dispatch(new("{}"u8.ToArray(), null, new Dictionary<string, string>()), provider.GetRequiredService<ConsumerDispatcher>(), default))!;
     }
 
     private static ServiceCollection Register(bool kafka, Fixture fixture, string destination = "events", bool declareTopology = true)
@@ -548,9 +483,12 @@ public sealed class ConsumerScanningTests
         => builder.Configure(o => { o.Connection = RabbitConnection(); o.Topology = TopologyMode.CreateMissing; }).Exchange(destination);
     private static void Prepare(KafkaBuilder builder, string destination = "events")
         => builder.Configure(o => o.Connection = KafkaConnection()).Topic(destination, 2, 1);
-    private static Attribute Attribute(bool kafka, Type? message = null, string subscription = "orders") => kafka
-        ? new KafkaConsumerAttribute(message ?? typeof(Message)) { Topic = "events", Group = subscription, Partitions = 2, ReplicationFactor = 1 }
-        : new RabbitMqConsumerAttribute(message ?? typeof(Message)) { Queue = subscription, Exchange = "events" };
+    private static void Configure(Fixture fixture, bool kafka, Type consumer, Type? message = null, string subscription = "orders")
+        => fixture.Configuration(kafka, consumer, message ?? typeof(Message), options =>
+        {
+            if (options is KafkaConsumerOptions k) { k.Topic = "events"; k.Group = subscription; k.Partitions = 2; k.ReplicationFactor = 1; }
+            else if (options is RabbitMqConsumerOptions r) { r.Queue = subscription; r.Exchange = "events"; }
+        });
     private static void Scan(object builder, Type marker)
         {
         if (builder is KafkaBuilder kafka) kafka.AddConsumersFromAssembly(marker.Assembly);
@@ -575,9 +513,6 @@ public sealed class ConsumerScanningTests
     {
         public Task ConsumeAsync(MessageContext<OtherMessage> context, CancellationToken cancellationToken) => Task.CompletedTask;
     }
-    [RabbitMqConsumer(typeof(Message), Queue = "orders", Exchange = "events")]
-    [KafkaConsumer(typeof(Message), Topic = "events", Group = "orders")]
-    public abstract class AttributedBase : NoopConsumer;
 
     // Изолированные сборки позволяют проверять ошибочные декларации без загрязнения других сценариев сканирования.
     private sealed class Fixture
@@ -591,19 +526,10 @@ public sealed class ConsumerScanningTests
             _module = assembly.DefineDynamicModule("Main");
             Marker = _module.DefineType("Marker", TypeAttributes.Public).CreateType()!;
         }
-        public Type Consumer(Type parent, params Attribute[] attributes) => Consumer(parent, attributes, false, false);
-        public Type Consumer(Type parent, Attribute[] attributes, bool abstractType = false, bool openGeneric = false)
+        public Type Consumer(Type parent)
         {
-            var type = _module.DefineType("Consumer" + _index++, TypeAttributes.Public | (abstractType ? TypeAttributes.Abstract : 0), parent);
-            if (openGeneric) type.DefineGenericParameters("T");
+            var type = _module.DefineType("Consumer" + _index++, TypeAttributes.Public, parent);
             type.DefineDefaultConstructor(MethodAttributes.Public);
-            foreach (var attribute in attributes)
-            {
-                var attrType = attribute.GetType();
-                var properties = attrType.GetProperties().Where(p => p.CanWrite).ToArray();
-                type.SetCustomAttribute(new CustomAttributeBuilder(attrType.GetConstructor([typeof(Type)])!,
-                    [attrType.GetProperty("MessageType")!.GetValue(attribute)], properties, properties.Select(p => p.GetValue(attribute)).ToArray()!));
-            }
             return type.CreateType()!;
         }
         public void Configuration(bool kafka, Type consumer, Type message, Action<object> configure,

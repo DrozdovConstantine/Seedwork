@@ -57,8 +57,6 @@ await host.RunAsync(stop.Token);
 
 // Независимая модель получателя: необязательное поле совместимо с JSON первой версии издателя.
 public sealed record OrderSubmitted(Guid Id, decimal Amount, string Currency = "RUB");
-// Простая подписка RabbitMQ задаётся атрибутом; отдельная конфигурация ниже уточняет её политику повторов.
-[RabbitMqConsumer(typeof(OrderSubmitted), Endpoint = "orders-rabbit", Queue = "billing.orders.v1", Exchange = "orders.v1", ExchangeType = RabbitMqExchangeType.Topic, MaxRetries = 3, Exponential = true)]
 public sealed class OrderConsumer(ILogger<OrderConsumer> logger) : IConsumer<OrderSubmitted>
 {
     public Task ConsumeAsync(MessageContext<OrderSubmitted> context, CancellationToken cancellationToken)
@@ -70,11 +68,15 @@ public sealed class OrderConsumer(ILogger<OrderConsumer> logger) : IConsumer<Ord
     }
 }
 
-// Значения атрибута уже заполнены: меняем только повторы, сохраняя привязку очереди.
+// Подписка RabbitMQ целиком задаётся классом конфигурации.
 public sealed class OrderRabbitConfiguration : RabbitMqConsumerConfiguration<OrderSubmitted, OrderConsumer>
 {
     public override void Configure(RabbitMqConsumerOptions options)
     {
+        options.Endpoint = "orders-rabbit";
+        options.Queue = "billing.orders.v1";
+        options.Exchange = "orders.v1";
+        options.ExchangeType = RabbitMqExchangeType.Topic;
         options.Retry.MaxRetries = 3;
         options.Retry.Exponential = true;
     }

@@ -10,10 +10,9 @@ namespace SeedWork.Messaging;
 /// <summary>Поиск деклараций при настройке приложения; в обработке сообщений рефлексия не используется.</summary>
 internal static class ConsumerDiscovery
 {
-    internal sealed record Registration(Type Consumer, Type Message, Attribute? Attribute, Type? Configuration);
+    internal sealed record Registration(Type Consumer, Type Message, Type Configuration);
 
-    internal static IReadOnlyList<Registration> Find<TAttribute>(Assembly assembly, Type configurationBase,
-        Func<TAttribute, Type> messageType) where TAttribute : Attribute
+    internal static IReadOnlyList<Registration> Find(Assembly assembly, Type configurationBase)
     {
         Type[] types;
         try { types = assembly.GetTypes(); }
@@ -25,18 +24,6 @@ internal static class ConsumerDiscovery
         var concrete = types.Where(t => t.IsClass && !t.IsAbstract && !t.ContainsGenericParameters)
             .OrderBy(t => t.FullName, StringComparer.Ordinal).ToArray();
         var registrations = new Dictionary<(Type Consumer, Type Message), Registration>();
-
-        foreach (var consumer in concrete)
-        {
-            foreach (var attribute in consumer.GetCustomAttributes<TAttribute>(inherit: false))
-            {
-                var message = messageType(attribute);
-                ValidatePair(consumer, message);
-                var pair = (consumer, message);
-                if (!registrations.TryAdd(pair, new(consumer, message, attribute, null)))
-                    throw new InvalidOperationException($"Duplicate {typeof(TAttribute).Name} for consumer '{consumer.FullName}', message '{message.FullName}'.");
-            }
-        }
 
         foreach (var configuration in concrete)
         {
@@ -54,7 +41,7 @@ internal static class ConsumerDiscovery
             registrations.TryGetValue(pair, out var existing);
             if (existing?.Configuration is not null)
                 throw new InvalidOperationException($"Duplicate configurations '{existing.Configuration.FullName}' and '{configuration.FullName}' for consumer '{consumer.FullName}', message '{message.FullName}'.");
-            registrations[pair] = new(consumer, message, existing?.Attribute, configuration);
+            registrations[pair] = new(consumer, message, configuration);
         }
 
         return registrations.Values.OrderBy(r => r.Consumer.FullName, StringComparer.Ordinal)
@@ -76,9 +63,8 @@ internal static class ConsumerDiscovery
             throw new InvalidOperationException($"Consumer '{consumer.FullName}' does not implement IConsumer for message '{message?.FullName}'.");
     }
 
-    internal static void ApplyConfiguration(Type? type, object options)
+    internal static void ApplyConfiguration(Type type, object options)
     {
-        if (type is null) return;
         try
         {
             var instance = Activator.CreateInstance(type)!;

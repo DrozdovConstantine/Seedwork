@@ -71,36 +71,23 @@ public sealed class KafkaBuilder
         return this;
     }
 
-    /// <summary>Находит в переданной сборке консумеры с атрибутом или конфигурацией Kafka и регистрирует их подписки.</summary>
-    /// <remarks>Конфигурация переопределяет атрибут. Ненастроенные консумеры пропускаются; топология берётся из итоговых настроек.</remarks>
+    /// <summary>Находит в переданной сборке классы конфигурации консумеров Kafka и регистрирует их подписки.</summary>
+    /// <remarks>Консумеры без конфигурации пропускаются; топология берётся из итоговых настроек.</remarks>
     [RequiresUnreferencedCode("Consumer scanning requires untrimmed consumer and configuration types. Use explicit Consume registration when trimming.")]
     [RequiresDynamicCode("Consumer scanning closes generic registration methods at runtime. Use explicit Consume registration for NativeAOT.")]
     public KafkaBuilder AddConsumersFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        var registrations = ConsumerDiscovery.Find<KafkaConsumerAttribute>(assembly,
-            typeof(KafkaConsumerConfiguration<,>), a => a.MessageType);
+        var registrations = ConsumerDiscovery.Find(assembly, typeof(KafkaConsumerConfiguration<,>));
         foreach (var registration in registrations)
         {
             var pair = (registration.Consumer, registration.Message);
             if (_registeredConsumers.Contains(pair))
                 throw new InvalidOperationException($"Consumer '{pair.Consumer.FullName}' for message '{pair.Message.FullName}' is already registered on '{_name}'.");
-            var attribute = (KafkaConsumerAttribute?)registration.Attribute;
             var options = new KafkaConsumerOptions
             {
-                Endpoint = attribute?.Endpoint ?? ConsumerDiscovery.EndpointName(_name, registration),
-                Topic = attribute?.Topic, Group = attribute?.Group,
-                Partitions = attribute?.Partitions ?? 0, ReplicationFactor = attribute?.ReplicationFactor ?? 0
+                Endpoint = ConsumerDiscovery.EndpointName(_name, registration)
             };
-            if (attribute is not null)
-            {
-                options.Retry.MaxRetries = attribute.MaxRetries;
-                options.Retry.Interval = TimeSpan.FromMilliseconds(attribute.IntervalMilliseconds);
-                options.Retry.MaxInterval = TimeSpan.FromMilliseconds(attribute.MaxIntervalMilliseconds);
-                options.Retry.Exponential = attribute.Exponential;
-                options.Retry.Handle.UnionWith(attribute.Handle ?? throw new ArgumentException("Handle cannot be null."));
-                options.Retry.Ignore.UnionWith(attribute.Ignore ?? throw new ArgumentException("Ignore cannot be null."));
-            }
             ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options);
             if (string.IsNullOrWhiteSpace(options.Endpoint) || string.IsNullOrWhiteSpace(options.Topic) || string.IsNullOrWhiteSpace(options.Group))
                 throw new InvalidOperationException($"Incomplete Kafka configuration for consumer '{pair.Consumer.FullName}', message '{pair.Message.FullName}'.");

@@ -4,7 +4,7 @@
 общие контракты находятся в SeedWork.Messaging и подключаются транзитивно.
 
 По умолчанию exchange имеет тип `RabbitMqExchangeType.Topic`, повторы отключены.
-Ошибка первой попытки направляет сообщение в очередь ошибок. Ниже — 17 примеров:
+Ошибка первой попытки направляет сообщение в очередь ошибок. Ниже — 15 примеров:
 первые два являются самостоятельными приложениями, остальные заменяют или дополняют
 указанные части первого примера. Альтернативные регистрации не нужно складывать вместе.
 
@@ -16,18 +16,16 @@
 - [2. Отдельный издатель](#publisher)
 - [3. Публикация через DI и метаданные](#metadata)
 - [4. Scoped-зависимости и отмена](#scoped)
-- [5. Только атрибут](#attribute)
-- [6. Только класс конфигурации](#configuration)
-- [7. Класс поверх атрибута](#override)
-- [8. Сканирование Assembly](#assemblies)
+- [5. Класс конфигурации](#configuration)
+- [6. Сканирование Assembly](#assemblies)
 - [Один класс для нескольких типов сообщений](#multi-contract)
-- [9. Фиксированные повторы](#retry)
-- [10. Экспоненциальные повторы и фильтры](#retry-filters)
-- [11. Без повторов и собственная error queue](#errors)
-- [12–14. Topic, Direct, Fanout](#routing)
-- [15. Проверка существующей топологии](#topology)
-- [16. Несколько подключений и Kafka](#connections)
-- [17. Телеметрия](#telemetry)
+- [7. Фиксированные повторы](#retry)
+- [8. Экспоненциальные повторы и фильтры](#retry-filters)
+- [9. Без повторов и собственная error queue](#errors)
+- [10–12. Topic, Direct, Fanout](#routing)
+- [13. Проверка существующей топологии](#topology)
+- [14. Несколько подключений и Kafka](#connections)
+- [15. Телеметрия](#telemetry)
 - [Гарантии и типичные ошибки](#operations)
 
 <a id="reference"></a>
@@ -261,28 +259,12 @@ public sealed class OrderConsumer(OrderHandler handler, ILogger<OrderConsumer> l
 его и вернуть успешный Task, сообщение будет подтверждено. Внешний издатель может не
 передать MessageId/CorrelationId, поэтому в MessageContext они допускают null.
 
-<a id="attribute"></a>
-## 5. Подписка только через атрибут
-
-В примере 1 замените `.Exchange(...).Consume<...>(...)` на
-`.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)`.
-К существующему классу OrderConsumer добавьте атрибут:
-
-```csharp
-[RabbitMqConsumer(typeof(OrderCreated), Endpoint = "billing-orders",
-    Queue = "billing.orders.v1", Exchange = "orders.v1",
-    ExchangeType = RabbitMqExchangeType.Topic, BindingKey = "orders.created")]
-```
-
-Это атрибут объявления класса, а не самостоятельное выражение. Отдельный класс
-конфигурации не нужен. Queue, exchange, binding и error queue будут описаны из атрибута.
-Тип сообщения обязателен даже для консумера с единственным IConsumer-интерфейсом.
-
 <a id="configuration"></a>
-## 6. Подписка только через класс конфигурации
+## 5. Подписка через класс конфигурации
 
-Используйте тот же вызов сканирования, удалите атрибут и добавьте класс ниже в сборку
-консумера.
+Замените ручной `Consume` из примера 1 на
+`rabbit.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)` и добавьте класс
+конфигурации в сборку консумера:
 
 ```csharp
 public sealed class OrderConsumerConfiguration
@@ -306,27 +288,8 @@ public sealed class OrderConsumerConfiguration
 задаются в коде; адрес подключения к брокеру приложение по-прежнему может читать из
 своей конфигурации.
 
-<a id="override"></a>
-## 7. Класс поверх атрибута
-
-Оставьте атрибут из примера 5. В классе из примера 6 замените тело Configure:
-
-```csharp
-options.Queue = "billing.orders.v2";
-options.Retry = new RetryOptions
-{
-    MaxRetries = 3,
-    Interval = TimeSpan.FromSeconds(2)
-};
-```
-
-Порядок: defaults → атрибут → класс. Незатронутые настройки атрибута сохраняются.
-Присваивание Retry заменяет политику целиком; `options.Retry.Handle.Clear()` очищает
-только фильтр. Если ErrorQueue не задан, стандартное имя вычисляется из итогового Queue.
-В одном транспорте для пары «консумер — сообщение» допускаются один атрибут и один класс.
-
 <a id="assemblies"></a>
-## 8. Передача Assembly и нескольких сборок
+## 6. Передача Assembly и нескольких сборок
 
 Метод принимает объект Assembly. Например, до AddSeedWorkMessaging получите
 `var consumerAssembly = typeof(OrderConsumer).Assembly;`, затем внутри AddRabbitMq
@@ -344,12 +307,12 @@ foreach (var assembly in consumerAssemblies.Distinct())
     rabbit.AddConsumersFromAssembly(assembly);
 ```
 
-Сканируются конкретные закрытые классы; унаследованный IConsumer учитывается, атрибуты
-базового класса не наследуются. Абстрактные, открытые generic-классы и ненастроенные
-консумеры пропускаются. Kafka-атрибуты не влияют на регистрацию RabbitMQ.
+Сканируются конкретные закрытые классы конфигурации; унаследованный `IConsumer<T>`
+учитывается. Абстрактные, открытые generic-классы и консумеры без конфигурации RabbitMQ
+пропускаются. Конфигурации Kafka не влияют на регистрацию RabbitMQ.
 Повторное сканирование одной пары и смешивание её сканирования с ручной регистрацией
 в одном подключении запрещены. Для нескольких IConsumer-интерфейсов задавайте отдельные
-декларации с разными очередями и endpoint. Ошибка загрузки типов отменяет сканирование.
+классы конфигурации с разными очередями и endpoint. Ошибка загрузки типов отменяет сканирование.
 Для trimming/NativeAOT используйте ручной Consume и отдельно проверяйте совместимость
 JSON и клиента: автоматическое сканирование требует сохранённых типов и динамического кода.
 
@@ -402,30 +365,9 @@ rabbit.Exchange("orders.v1", RabbitMqExchangeType.Topic)
         bindingKey: "orders.cancelled");
 ```
 
-### Вариант 2: два атрибута и один вызов сканирования
+### Вариант 2: отдельный класс конфигурации для каждого типа
 
-Уберите ручные `Consume` и добавьте два атрибута непосредственно над объявлением
-`OrderEventsConsumer`. Политика повторов каждого типа задаётся отдельно:
-
-```csharp
-[RabbitMqConsumer(typeof(OrderCreated), Endpoint = "orders-created-consumer",
-    Queue = "billing.orders.created", Exchange = "orders.v1",
-    BindingKey = "orders.created", MaxRetries = 2)]
-[RabbitMqConsumer(typeof(OrderCancelled), Endpoint = "orders-cancelled-consumer",
-    Queue = "billing.orders.cancelled", Exchange = "orders.v1",
-    BindingKey = "orders.cancelled", MaxRetries = 0)]
-```
-
-Внутри `AddRabbitMq` после `Configure` используйте
-`rabbit.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly)`.
-Один вызов обнаружит обе подписки и объявит общий exchange типа Topic.
-Атрибуты указывают разные типы сообщений: два атрибута для одного и того же типа
-считаются дубликатом и вызывают ошибку регистрации.
-
-### Вариант 3: отдельный класс конфигурации для каждого типа
-
-Уберите атрибуты и ручные `Consume`, оставьте вызов сканирования из варианта 2.
-Добавьте в ту же сборку оба класса. Имя очереди второго типа задано независимо
+Уберите ручные `Consume`, вызовите `rabbit.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly)` и добавьте в ту же сборку оба класса. Имя очереди второго типа задано независимо
 и не влияет на первый тип.
 
 ```csharp
@@ -486,7 +428,7 @@ await publisher.PublishAsync("orders-cancelled", new OrderCancelled(Guid.NewGuid
 класса не объединяет очереди или политики ошибок.
 
 <a id="retry"></a>
-## 9. Фиксированные повторы
+## 7. Фиксированные повторы
 
 В ручной регистрации примера 1 замените Consume:
 
@@ -504,7 +446,7 @@ await publisher.PublishAsync("orders-cancelled", new OrderCancelled(Guid.NewGuid
 завершения текущего. Номер Attempt начинается с 1 и сбрасывается при новой доставке брокером.
 
 <a id="retry-filters"></a>
-## 10. Экспоненциальная задержка и фильтры
+## 8. Экспоненциальная задержка и фильтры
 
 В Configure класса консумера можно полностью задать политику:
 
@@ -522,38 +464,20 @@ options.Retry.Ignore.Add(typeof(ArgumentException));
 
 Задержки: 1, 2, 4, 5 секунд. Пустой Handle допускает все типы; иначе повторяются только
 указанные типы и их наследники. Ignore имеет приоритет. Ошибки десериализации не повторяются.
-Эквивалентная политика в атрибуте — замените атрибут примера 5:
-
-```csharp
-[RabbitMqConsumer(typeof(OrderCreated), Queue = "billing.orders.v1", Exchange = "orders.v1",
-    BindingKey = "orders.created", MaxRetries = 4, IntervalMilliseconds = 1000,
-    Exponential = true, MaxIntervalMilliseconds = 5000,
-    Handle = new[] { typeof(TimeoutException) }, Ignore = new[] { typeof(ArgumentException) })]
-```
-
-| Атрибут | RetryOptions | По умолчанию |
-|---|---|---|
-| MaxRetries | MaxRetries | 0 |
-| IntervalMilliseconds | Interval | 1000 мс |
-| Exponential | Exponential | false |
-| MaxIntervalMilliseconds | MaxInterval | 30000 мс |
-| Handle / Ignore | Handle / Ignore | пустые массивы / наборы |
-
 Количество и интервалы неотрицательные, MaxInterval не меньше Interval и не больше
 4 294 967 294 мс. Фильтры содержат типы исключений. Установка только интервала не включает повторы.
 
 <a id="errors"></a>
-## 11. Отключение повторов и очередь ошибок
+## 9. Отключение повторов и очередь ошибок
 
-В Configure класса, в том числе поверх атрибута с MaxRetries больше нуля:
+В методе `Configure` класса конфигурации:
 
 ```csharp
 options.Retry = RetryOptions.NoRetry();
 options.ErrorQueue = "billing.orders.failed";
 ```
 
-NoRetry() возвращает новый независимый объект. В атрибуте используйте `MaxRetries = 0`;
-при ручной регистрации можно опустить configureRetry или задать `retry.MaxRetries = 0`.
+NoRetry() возвращает новый независимый объект. При ручной регистрации можно опустить configureRetry или задать `retry.MaxRetries = 0`.
 Null вместо Retry недопустим. Раньше отсутствие настройки означало три повтора; теперь
 для сохранения этого поведения требуется явно указать MaxRetries = 3.
 
@@ -574,7 +498,7 @@ Null вместо Retry недопустим. Раньше отсутствие 
 Готового API повторной отправки из error queue нет; разбор и возврат сообщений организует приложение.
 
 <a id="routing"></a>
-## 12. Topic: подписка по шаблону
+## 10. Topic: подписка по шаблону
 
 В примере 1 замените цепочку Exchange/Consume; в примере 2 используйте тот же exchange
 и routingKey `orders.created`:
@@ -589,7 +513,7 @@ Null вместо Retry недопустим. Раньше отсутствие 
 `orders.created`, но не `orders.eu.created`; `orders.#` принимает оба. Тип Topic выбирается
 по умолчанию и не наследуется из другого объявления exchange.
 
-## 13. Direct: точное совпадение
+## 11. Direct: точное совпадение
 
 В получателе замените цепочку Exchange/Consume. Используется новое имя ресурса, поскольку
 тип существующего exchange автоматически не меняется:
@@ -609,7 +533,7 @@ Null вместо Retry недопустим. Раньше отсутствие 
 
 Для Direct `#` означает буквальный ключ, а не «все сообщения».
 
-## 14. Fanout: копия в каждую очередь
+## 12. Fanout: копия в каждую очередь
 
 В получателе вместо цепочки Exchange/Consume:
 
@@ -632,7 +556,7 @@ Null вместо Retry недопустим. Раньше отсутствие 
 оставляет активным один экземпляр; это не рассылка каждому процессу.
 
 <a id="topology"></a>
-## 15. Проверка существующей топологии
+## 13. Проверка существующей топологии
 
 После подготовки ресурсов замените тело Configure подключения в примере 1:
 
@@ -654,7 +578,7 @@ AMQP declarations и также отклоняет несовместимые р
 менять options нельзя.
 
 <a id="connections"></a>
-## 16. Несколько подключений и Kafka в одной шине
+## 14. Несколько подключений и Kafka в одной шине
 
 Замените целиком единственный вызов AddSeedWorkMessaging. Для Kafka добавьте ссылку
 на `src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj` через `dotnet add <проект> reference <путь>`
@@ -695,7 +619,7 @@ builder.Services.AddSeedWorkMessaging(bus =>
 AddSeedWorkMessaging вызывается один раз на IServiceCollection.
 
 <a id="telemetry"></a>
-## 17. Логи, трассы и метрики
+## 15. Логи, трассы и метрики
 
 Добавьте пакеты OpenTelemetry.Extensions.Hosting и OpenTelemetry.Exporter.OpenTelemetryProtocol
 версии 1.19.1, а также `using OpenTelemetry.Logs;`, `using OpenTelemetry.Metrics;`,

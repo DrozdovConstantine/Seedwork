@@ -5,7 +5,7 @@
 
 Повторы по умолчанию отключены. Первая ошибка обработчика приостанавливает партицию,
 не фиксируя offset ошибочного сообщения. Другие партиции продолжают работать.
-Ниже — 16 примеров: первые два представляют самостоятельные приложения, остальные
+Ниже — 14 примеров: первые два представляют самостоятельные приложения, остальные
 заменяют или дополняют указанные части первого. Альтернативные регистрации не складываются вместе.
 
 ## Содержание
@@ -16,19 +16,17 @@
 - [2. Отдельный издатель](#publisher)
 - [3. Публикация через DI и ключ сообщения](#metadata)
 - [4. Scoped-зависимости и отмена](#scoped)
-- [5. Только атрибут](#attribute)
-- [6. Только класс конфигурации](#configuration)
-- [7. Класс поверх атрибута](#override)
-- [8. Сканирование Assembly](#assemblies)
+- [5. Класс конфигурации](#configuration)
+- [6. Сканирование Assembly](#assemblies)
 - [Один класс для нескольких типов сообщений](#multi-contract)
-- [9. Несколько экземпляров одной группы](#same-group)
-- [10. Две независимые группы](#different-groups)
-- [11. Общее объявление topic и ValidateOnly](#topology)
-- [12. Фиксированные повторы](#retry)
-- [13. Экспоненциальные повторы и фильтры](#retry-filters)
-- [14. Без повторов и пауза партиции](#no-retry)
-- [15. Несколько подключений и RabbitMQ](#connections)
-- [16. Телеметрия](#telemetry)
+- [7. Несколько экземпляров одной группы](#same-group)
+- [8. Две независимые группы](#different-groups)
+- [9. Общее объявление topic и ValidateOnly](#topology)
+- [10. Фиксированные повторы](#retry)
+- [11. Экспоненциальные повторы и фильтры](#retry-filters)
+- [12. Без повторов и пауза партиции](#no-retry)
+- [13. Несколько подключений и RabbitMQ](#connections)
+- [14. Телеметрия](#telemetry)
 - [Остановка, гарантии и типичные ошибки](#operations)
 
 <a id="reference"></a>
@@ -270,25 +268,12 @@ public sealed class OrderConsumer(OrderHandler handler, ILogger<OrderConsumer> l
 Передавайте ct во внешние операции: он отменяется при остановке и отзыве партиции.
 Не скрывайте ошибку обработчика, если offset не должен быть зафиксирован.
 
-<a id="attribute"></a>
-## 5. Подписка только через атрибут
-
-В примере 1 замените `.Topic(...).Consume<...>(...)` на
-`.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)`.
-Непосредственно перед объявлением существующего OrderConsumer добавьте:
-
-```csharp
-[KafkaConsumer(typeof(OrderCreated), Endpoint = "billing-orders", Topic = "orders.v1",
-    Group = "billing-v1", Partitions = 2, ReplicationFactor = 1)]
-```
-
-Отдельное объявление Topic больше не требуется. Атрибут описывает одну пару
-«консумер — сообщение»; тип сообщения указывается явно. Повторов в этом примере нет.
-
 <a id="configuration"></a>
-## 6. Подписка только через класс конфигурации
+## 5. Подписка через класс конфигурации
 
-Используйте тот же вызов сканирования, удалите атрибут и добавьте класс в сборку консумера.
+Замените ручной `Consume` из примера 1 на
+`kafka.AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)` и добавьте класс
+конфигурации в сборку консумера:
 
 ```csharp
 public sealed class OrderConsumerConfiguration
@@ -311,27 +296,8 @@ public sealed class OrderConsumerConfiguration
 Настройки подписки задаются в коде; адрес подключения к брокеру приложение по-прежнему
 может читать из своей конфигурации. Изменение числа партиций не выполняет миграцию topic.
 
-<a id="override"></a>
-## 7. Класс поверх атрибута
-
-Оставьте атрибут из примера 5 и замените тело Configure класса из примера 6:
-
-```csharp
-options.Group = "billing-preview-v1";
-options.Retry = new RetryOptions
-{
-    MaxRetries = 3,
-    Interval = TimeSpan.FromSeconds(2)
-};
-```
-
-Defaults заполняются из атрибута, затем класс меняет необходимые поля. Topic, Partitions
-и ReplicationFactor сохраняются. Присваивание Retry заменяет политику целиком;
-`options.Retry.Ignore.Clear()` очищает только Ignore. В одном транспорте допускается
-один атрибут и один класс конфигурации для пары «консумер — сообщение».
-
 <a id="assemblies"></a>
-## 8. Передача Assembly и нескольких сборок
+## 6. Передача Assembly и нескольких сборок
 
 До регистрации получите `var consumerAssembly = typeof(OrderConsumer).Assembly;`.
 Внутри AddKafka после Configure:
@@ -348,17 +314,17 @@ foreach (var assembly in consumerAssemblies.Distinct())
     kafka.AddConsumersFromAssembly(assembly);
 ```
 
-Сканируются конкретные закрытые классы с IConsumer, включая унаследованные интерфейсы.
-Атрибуты базового класса не наследуются. Абстрактные, открытые generic-классы и консумеры
-без настроек Kafka пропускаются; RabbitMQ-декларации игнорируются.
+Сканируются конкретные закрытые классы конфигурации для `IConsumer<T>`, включая
+унаследованные реализации интерфейса. Абстрактные, открытые generic-классы и
+консумеры без конфигурации Kafka пропускаются; конфигурации RabbitMQ игнорируются.
 Дубли сканирования и смешивание с ручной регистрацией той же пары в одном подключении
-запрещены. Для нескольких типов сообщений требуются отдельные декларации и уникальные
+запрещены. Для нескольких типов сообщений требуются отдельные классы конфигурации и уникальные
 endpoint; пара topic/group также должна быть уникальной в подключении.
 Ошибка загрузки типов отменяет сканирование. Для trimming/NativeAOT нужна явная регистрация
 Consume и отдельная проверка совместимости JSON и клиента.
 
 <a id="same-group"></a>
-## 9. Несколько экземпляров одной группы
+## 7. Несколько экземпляров одной группы
 
 После сборки получателя запустите команду в двух терминалах:
 
@@ -366,13 +332,13 @@ Consume и отдельная проверка совместимости JSON �
 dotnet run --project artifacts/tutorials/KafkaConsumer
 ```
 
-Группа billing-v1 задана в классе конфигурации из примера 6. При двух партициях Kafka распределяет их между
+Группа billing-v1 задана в классе конфигурации из примера 5. При двух партициях Kafka распределяет их между
 участниками группы. У одной партиции в пределах группы один текущий владелец. Дополнительные
 экземпляры сверх числа партиций могут остаться без назначений. Один процесс способен
 обрабатывать несколько назначенных партиций параллельно, сохраняя последовательность в каждой.
 
 <a id="different-groups"></a>
-## 10. Две независимые группы
+## 8. Две независимые группы
 
 В примере 1 замените цепочку Topic/Consume:
 
@@ -388,7 +354,7 @@ dotnet run --project artifacts/tutorials/KafkaConsumer
 доступных записей, поэтому сообщение может быть обработано каждым из двух получателей.
 
 <a id="topology"></a>
-## 11. Общее объявление topic и ValidateOnly
+## 9. Общее объявление topic и ValidateOnly
 
 Вместо полного объявления топологии на каждом консумере можно указать topic один раз.
 В примере 1 используйте цепочку:
@@ -398,11 +364,8 @@ dotnet run --project artifacts/tutorials/KafkaConsumer
 .AddConsumersFromAssembly(typeof(OrderConsumer).Assembly)
 ```
 
-При этом атрибут OrderConsumer замените на вариант без размеров topic:
-
-```csharp
-[KafkaConsumer(typeof(OrderCreated), Topic = "orders.v1", Group = "billing-v1")]
-```
+В `OrderConsumerConfiguration.Configure` задайте `options.Topic = "orders.v1"` и
+`options.Group = "billing-v1"`, оставив размеры topic равными нулю.
 
 Partitions/ReplicationFactor со значением 0 используют общее объявление. Если необходимых
 значений нет нигде, регистрация завершится ошибкой. Совпадающие объявления допустимы,
@@ -474,28 +437,9 @@ kafka.Topic("orders.created.v1", partitions: 2, replicationFactor: 1)
         "orders-cancelled-consumer", "orders.cancelled.v1", "billing-v1");
 ```
 
-### Вариант 2: два атрибута и одно сканирование
+### Вариант 2: два класса конфигурации
 
-Удалите ручные `Consume` и `Topic`, добавьте два атрибута непосредственно над
-`OrderEventsConsumer`:
-
-```csharp
-[KafkaConsumer(typeof(OrderCreated), Endpoint = "orders-created-consumer",
-    Topic = "orders.created.v1", Group = "billing-v1",
-    Partitions = 2, ReplicationFactor = 1, MaxRetries = 2)]
-[KafkaConsumer(typeof(OrderCancelled), Endpoint = "orders-cancelled-consumer",
-    Topic = "orders.cancelled.v1", Group = "billing-v1",
-    Partitions = 2, ReplicationFactor = 1, MaxRetries = 0)]
-```
-
-Внутри `AddKafka` после `Configure` вызовите
-`kafka.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly)`.
-Сканирование создаст две подписки. Для одной пары «тип — консумер» повторный атрибут
-запрещён; для двух разных типов атрибуты работают независимо.
-
-### Вариант 3: два класса конфигурации
-
-Уберите атрибуты, оставьте одно сканирование и добавьте классы в ту же сборку.
+Уберите ручные `Consume` и `Topic`, вызовите `kafka.AddConsumersFromAssembly(typeof(OrderEventsConsumer).Assembly)` и добавьте классы в ту же сборку.
 Поле Group второго класса задаётся независимо от первого.
 
 ```csharp
@@ -559,7 +503,7 @@ await publisher.PublishAsync("orders-cancelled", new OrderCancelled(Guid.NewGuid
 и окончательной ошибки определяется topic/partition каждого endpoint, а не общим классом.
 
 <a id="retry"></a>
-## 12. Фиксированные повторы
+## 10. Фиксированные повторы
 
 В ручной регистрации замените Consume:
 
@@ -577,7 +521,7 @@ await publisher.PublishAsync("orders-cancelled", new OrderCancelled(Guid.NewGuid
 Attempt начинается с 1, новая доставка после rebalance начинает отсчёт заново.
 
 <a id="retry-filters"></a>
-## 13. Экспоненциальные задержки и фильтры
+## 11. Экспоненциальные задержки и фильтры
 
 В Configure класса консумера:
 
@@ -595,38 +539,20 @@ options.Retry.Ignore.Add(typeof(ArgumentException));
 
 Задержки составляют 1, 2, 4, 5 секунд. Пустой Handle разрешает повтор всех типов;
 непустой разрешает указанные типы и наследников. Ignore имеет приоритет.
-Та же политика в атрибуте вместо атрибута примера 5:
-
-```csharp
-[KafkaConsumer(typeof(OrderCreated), Topic = "orders.v1", Group = "billing-v1",
-    Partitions = 2, ReplicationFactor = 1, MaxRetries = 4,
-    IntervalMilliseconds = 1000, Exponential = true, MaxIntervalMilliseconds = 5000,
-    Handle = new[] { typeof(TimeoutException) }, Ignore = new[] { typeof(ArgumentException) })]
-```
-
-| Атрибут | RetryOptions | По умолчанию |
-|---|---|---|
-| MaxRetries | MaxRetries | 0 |
-| IntervalMilliseconds | Interval | 1000 мс |
-| Exponential | Exponential | false |
-| MaxIntervalMilliseconds | MaxInterval | 30000 мс |
-| Handle / Ignore | Handle / Ignore | пустые массивы / наборы |
-
 Количество и интервалы неотрицательные, MaxInterval не меньше Interval и не больше
 4 294 967 294 мс. Фильтры содержат типы исключений. Интервал сам по себе не включает повторы.
 Ошибки JSON и tombstone/null не повторяются и приводят к паузе партиции.
 
 <a id="no-retry"></a>
-## 14. Без повторов и пауза партиции
+## 12. Без повторов и пауза партиции
 
-В Configure класса, в том числе поверх атрибута с MaxRetries больше нуля:
+В методе `Configure` класса конфигурации:
 
 ```csharp
 options.Retry = RetryOptions.NoRetry();
 ```
 
-Фабрика создаёт отдельный объект, не общий mutable singleton. Для атрибута достаточно
-MaxRetries=0; в ручном Consume можно не передавать configureRetry. Null в Retry запрещён.
+Фабрика создаёт отдельный объект. В ручном `Consume` можно не передавать `configureRetry`. Null в Retry запрещён.
 Для сохранения прежнего поведения с тремя повторами необходимо явно указать MaxRetries=3.
 
 Сценарий: запись A в партиции 0 завершается ошибкой, за ней стоит запись B. После ошибки
@@ -642,7 +568,7 @@ Error topic, пропуск ошибочной записи и публичны�
 даже во время паузы, поэтому остановка чтения не гарантирует бессрочного хранения записи.
 
 <a id="connections"></a>
-## 15. Несколько подключений и RabbitMQ в одной шине
+## 13. Несколько подключений и RabbitMQ в одной шине
 
 Замените единственный вызов AddSeedWorkMessaging в приложении издателя. Для RabbitMQ
 добавьте ссылку на `src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj`
@@ -677,7 +603,7 @@ builder.Services.AddSeedWorkMessaging(bus =>
 подготовить очередь и binding. AddSeedWorkMessaging вызывается один раз на IServiceCollection.
 
 <a id="telemetry"></a>
-## 16. Логи, трассы и метрики
+## 14. Логи, трассы и метрики
 
 Добавьте OpenTelemetry.Extensions.Hosting и OpenTelemetry.Exporter.OpenTelemetryProtocol
 версии 1.19.1; добавьте `using OpenTelemetry.Logs;`, `using OpenTelemetry.Metrics;`,
