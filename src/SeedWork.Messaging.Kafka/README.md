@@ -72,11 +72,27 @@ options.Connection = new KafkaConnectionSettings
 
 | Настройка консумера | Значение / требование |
 |---|---|
-| `Topic`, `Group` | Обязательны после применения класса конфигурации |
+| `Topic`, `Group` | Topic обязателен; Group можно задать для всего подключения |
 | `Partitions` | Положительное число для нового объявления; 0 использует общее объявление topic |
 | `ReplicationFactor` | Положительное число для нового объявления; 0 использует общее объявление |
 | `Endpoint` при сканировании | `{connection}/{consumer.FullName}/{message.FullName}` |
-| `Retry` | Отдельный RetryOptions без повторов; null недопустим |
+| `Retry` | Копия политики подключения; по умолчанию без повторов, null недопустим |
+
+Для всех потребителей подключения можно задать `Group` и `Retry` до их регистрации:
+
+```csharp
+kafka.Configure(options =>
+{
+    options.Connection = connection;
+    options.ConsumerDefaults.Group = "billing-v1";
+    options.ConsumerDefaults.Retry.MaxRetries = 2;
+});
+```
+
+`KafkaConsumerConfiguration.Configure` получает отдельную копию политики: можно изменить
+её свойства или присвоить `options.Retry = RetryOptions.NoRetry()`.
+При ручном `Consume` аргумент `group` можно опустить; `configureRetry` изменяет копию
+политики подключения. Настройки разных подключений Kafka независимы.
 
 Адаптер фиксирует EnableAutoCommit=false, EnableAutoOffsetStore=false,
 AutoOffsetReset=Earliest и запрет auto-create topic. Новая группа без сохранённого offset
@@ -124,9 +140,11 @@ builder.Services.AddSeedWorkMessaging(bus => bus.AddKafka("kafka", kafka => kafk
     {
         options.Connection = new KafkaConnectionSettings { BootstrapServers = "127.0.0.1:19092" };
         options.Topology = TopologyMode.CreateMissing;
+        options.ConsumerDefaults.Group = "billing-v1";
+        options.ConsumerDefaults.Retry.MaxRetries = 2;
     })
     .Topic("orders.v1", partitions: 2, replicationFactor: 1)
-    .Consume<OrderCreated, OrderConsumer>("billing-orders", "orders.v1", "billing-v1")));
+    .Consume<OrderCreated, OrderConsumer>("billing-orders", "orders.v1")));
 
 using var host = builder.Build();
 await host.RunAsync();
@@ -147,7 +165,7 @@ public sealed class OrderConsumer(ILogger<OrderConsumer> logger) : IConsumer<Ord
 
 Host готовит topic до начала обработки. После успешного ConsumeAsync адаптер фиксирует
 следующий offset и возобновляет выдачу партиции. При исключении в этом примере партиция
-останавливается сразу, поскольку MaxRetries по умолчанию равен нулю.
+останавливается после трёх попыток: первая и два повтора из настроек подключения.
 
 <a id="publisher"></a>
 ## 2. Отдельный издатель
@@ -283,9 +301,9 @@ public sealed class OrderConsumerConfiguration
     {
         options.Endpoint = "billing-orders";
         options.Topic = "orders.v1";
-        options.Group = "billing-v1";
         options.Partitions = 2;
         options.ReplicationFactor = 1;
+        // Для этого обработчика отключаем два повтора, заданных на подключении.
         options.Retry = RetryOptions.NoRetry();
     }
 }

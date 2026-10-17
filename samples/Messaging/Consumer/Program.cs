@@ -28,6 +28,8 @@ builder.Services.AddSeedWorkMessaging(b =>
             UseTls = builder.Configuration.GetValue("RabbitMQ:UseTls", false)
         };
         o.Topology = TopologyMode.CreateMissing;
+        o.ConsumerDefaults.ExchangeType = RabbitMqExchangeType.Topic;
+        o.ConsumerDefaults.Retry.MaxRetries = 3;
     }).AddConsumersFromAssembly(typeof(OrderConsumer).Assembly));
     // Экземпляры сервиса с одной группой billing-v1 делят партиции между собой.
     b.AddKafka("kafka", k => k.Configure(o =>
@@ -41,6 +43,8 @@ builder.Services.AddSeedWorkMessaging(b =>
             SaslPassword = builder.Configuration["Kafka:SaslPassword"]
         };
         o.Topology = TopologyMode.CreateMissing;
+        o.ConsumerDefaults.Group = "billing-v1";
+        o.ConsumerDefaults.Retry.MaxRetries = 2;
     }).AddConsumersFromAssembly(typeof(OrderConsumer).Assembly));
 });
 // Подключаем общий источник и источники адаптеров; связь с издателем восстанавливается из headers.
@@ -68,7 +72,7 @@ public sealed class OrderConsumer(ILogger<OrderConsumer> logger) : IConsumer<Ord
     }
 }
 
-// Подписка RabbitMQ целиком задаётся классом конфигурации.
+// Класс задаёт адрес подписки и уточняет общую политику RabbitMQ.
 public sealed class OrderRabbitConfiguration : RabbitMqConsumerConfiguration<OrderSubmitted, OrderConsumer>
 {
     public override void Configure(RabbitMqConsumerOptions options)
@@ -76,13 +80,11 @@ public sealed class OrderRabbitConfiguration : RabbitMqConsumerConfiguration<Ord
         options.Endpoint = "orders-rabbit";
         options.Queue = "billing.orders.v1";
         options.Exchange = "orders.v1";
-        options.ExchangeType = RabbitMqExchangeType.Topic;
-        options.Retry.MaxRetries = 3;
         options.Retry.Exponential = true;
     }
 }
 
-// Kafka использует только класс конфигурации; группа задана прямо в подписке.
+// Kafka наследует группу подключения, но для этого обработчика отключает повторы.
 public sealed class OrderKafkaConfiguration : KafkaConsumerConfiguration<OrderSubmitted, OrderConsumer>
 {
     public override void Configure(KafkaConsumerOptions options)
@@ -91,7 +93,6 @@ public sealed class OrderKafkaConfiguration : KafkaConsumerConfiguration<OrderSu
         options.Topic = "orders.v1";
         options.Partitions = 2;
         options.ReplicationFactor = 1;
-        options.Group = "billing-v1";
         // Без повторов первая ошибка сразу приостанавливает партицию.
         options.Retry = RetryOptions.NoRetry();
     }

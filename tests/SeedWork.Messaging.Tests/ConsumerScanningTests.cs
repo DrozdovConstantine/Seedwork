@@ -49,6 +49,176 @@ public sealed class ConsumerScanningTests
         Assert.Contains(Register(kafka, fixture, declareTopology: false), s => s.ServiceType == consumer);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TransportDefaults_AreCopiedBeforeConsumerConfiguration(bool kafka)
+    {
+        var fixture = new Fixture();
+        var first = fixture.Consumer(typeof(NoopConsumer));
+        var second = fixture.Consumer(typeof(NoopConsumer));
+        RetryOptions? firstRetry = null;
+        RetryOptions? secondRetry = null;
+        fixture.Configuration(kafka, first, typeof(Message), o =>
+        {
+            if (o is KafkaConsumerOptions k)
+            {
+                Assert.Equal("shared", k.Group);
+                k.Topic = "events";
+                k.Group = "override";
+                firstRetry = k.Retry;
+            }
+            else
+            {
+                var r = (RabbitMqConsumerOptions)o;
+                Assert.Equal(RabbitMqExchangeType.Direct, r.ExchangeType);
+                r.Queue = "first";
+                r.Exchange = "other";
+                r.ExchangeType = RabbitMqExchangeType.Topic;
+                firstRetry = r.Retry;
+            }
+            Assert.Equal(2, firstRetry.MaxRetries);
+            Assert.Contains(typeof(InvalidOperationException), firstRetry.Handle);
+            firstRetry.MaxRetries = 3;
+            firstRetry.Handle.Clear();
+        });
+        fixture.Configuration(kafka, second, typeof(Message), o =>
+        {
+            if (o is KafkaConsumerOptions k)
+            {
+                Assert.Equal("shared", k.Group);
+                k.Topic = "events";
+                secondRetry = k.Retry;
+                k.Retry = RetryOptions.NoRetry();
+            }
+            else
+            {
+                var r = (RabbitMqConsumerOptions)o;
+                Assert.Equal(RabbitMqExchangeType.Direct, r.ExchangeType);
+                r.Queue = "second";
+                r.Exchange = "events";
+                secondRetry = r.Retry;
+                r.Retry = RetryOptions.NoRetry();
+            }
+            Assert.Equal(2, secondRetry.MaxRetries);
+            Assert.Contains(typeof(InvalidOperationException), secondRetry.Handle);
+        });
+
+        object? captured = null;
+        var defaults = RetryOptions.NoRetry();
+        defaults.MaxRetries = 2;
+        defaults.Handle.Add(typeof(InvalidOperationException));
+        new ServiceCollection().AddSeedWorkMessaging(b =>
+        {
+            if (kafka) b.AddKafka("k", k =>
+            {
+                k.Configure(o =>
+                {
+                    o.Connection = KafkaConnection();
+                    o.ConsumerDefaults.Group = "shared";
+                    o.ConsumerDefaults.Retry = defaults;
+                }).Topic("events", 2, 1);
+                Scan(k, fixture.Marker);
+                captured = k;
+            });
+            else b.AddRabbitMq("r", r =>
+            {
+                r.Configure(o =>
+                {
+                    o.Connection = RabbitConnection();
+                    o.Topology = TopologyMode.CreateMissing;
+                    o.ConsumerDefaults.ExchangeType = RabbitMqExchangeType.Direct;
+                    o.ConsumerDefaults.Retry = defaults;
+                }).Exchange("events");
+                Scan(r, fixture.Marker);
+                captured = r;
+            });
+        });
+
+        Assert.NotSame(defaults, firstRetry);
+        Assert.NotSame(defaults, secondRetry);
+        Assert.NotSame(firstRetry, secondRetry);
+        Assert.Equal(2, defaults.MaxRetries);
+        Assert.Contains(typeof(InvalidOperationException), defaults.Handle);
+        var topology = (System.Collections.IDictionary)captured!.GetType()
+            .GetProperty(kafka ? "Topics" : "Exchanges", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(captured)!;
+        if (!kafka)
+        {
+            Assert.Equal("direct", topology["events"]);
+            Assert.Equal("topic", topology["other"]);
+        }
+        else
+        {
+            var endpoints = ((System.Collections.IEnumerable)captured.GetType()
+                .GetProperty("Endpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!).Cast<object>();
+            Assert.Equal(new[] { "override", "shared" }, endpoints.Select(e => (string)e.GetType().GetProperty("Group")!.GetValue(e)!).Order());
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManualConsumers_InheritAndOverrideTransportRetry(bool kafka)
+    {
+        var fixture = new Fixture();
+        var inherited = fixture.Consumer(typeof(FailingConsumer));
+        var overridden = fixture.Consumer(typeof(FailingConsumer));
+        var services = new ServiceCollection();
+        object? captured = null;
+        services.AddSeedWorkMessaging(b =>
+        {
+            if (kafka) b.AddKafka("k", k =>
+            {
+                k.Configure(o =>
+                {
+                    o.Connection = KafkaConnection();
+                    o.ConsumerDefaults.Group = "shared";
+                    o.ConsumerDefaults.Retry.MaxRetries = 1;
+                    o.ConsumerDefaults.Retry.Interval = TimeSpan.Zero;
+                }).Topic("events", 2, 1);
+                var method = k.GetType().GetMethod("Consume")!;
+                Invoke(method.MakeGenericMethod(typeof(Message), inherited), k, ["first", "events", null, null]);
+                Invoke(method.MakeGenericMethod(typeof(Message), overridden), k,
+                    ["second", "events", "other", (Action<RetryOptions>)(retry => retry.MaxRetries = 0)]);
+                captured = k;
+            });
+            else b.AddRabbitMq("r", r =>
+            {
+                r.Configure(o =>
+                {
+                    o.Connection = RabbitConnection();
+                    o.Topology = TopologyMode.CreateMissing;
+                    o.ConsumerDefaults.ExchangeType = RabbitMqExchangeType.Direct;
+                    o.ConsumerDefaults.Retry.MaxRetries = 1;
+                    o.ConsumerDefaults.Retry.Interval = TimeSpan.Zero;
+                }).Exchange("events");
+                var method = r.GetType().GetMethod("Consume")!;
+                Invoke(method.MakeGenericMethod(typeof(Message), inherited), r, ["first", "first", "events", "key", null, null]);
+                Invoke(method.MakeGenericMethod(typeof(Message), overridden), r,
+                    ["second", "second", "events", "key", (Action<RetryOptions>)(retry => retry.MaxRetries = 0), null]);
+                captured = r;
+            });
+        });
+
+        var endpoints = ((System.Collections.IEnumerable)captured!.GetType()
+            .GetProperty("Endpoints", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!).Cast<object>().ToArray();
+        await using var provider = services.BuildServiceProvider();
+        Assert.Equal(2, (await Dispatch(endpoints[0], provider)).Attempts);
+        Assert.Equal(1, (await Dispatch(endpoints[1], provider)).Attempts);
+        if (kafka)
+        {
+            Assert.Equal("shared", endpoints[0].GetType().GetProperty("Group")!.GetValue(endpoints[0]));
+            Assert.Equal("other", endpoints[1].GetType().GetProperty("Group")!.GetValue(endpoints[1]));
+        }
+        else
+        {
+            var exchanges = (System.Collections.IDictionary)captured.GetType()
+                .GetProperty("Exchanges", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(captured)!;
+            Assert.Equal("direct", exchanges["events"]);
+        }
+    }
+
     [Fact]
     public void DifferentTransports_ConfigureSameConsumerIndependently()
     {

@@ -104,4 +104,11 @@ internal static class ConsumerDiscovery
         target.Ignore.Clear();
         target.Ignore.UnionWith(source.Ignore);
     }
+
+    internal static RetryOptions CloneRetry(RetryOptions source)
+    {
+        var target = new RetryOptions();
+        CopyRetry(source, target);
+        return target;
+    }
 }

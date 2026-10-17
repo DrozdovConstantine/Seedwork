@@ -71,11 +71,27 @@ options.Connection = new RabbitMqFieldsConnectionSettings
 | Настройка консумера | Значение / требование |
 |---|---|
 | `Queue`, `Exchange` | Обязательны после применения класса конфигурации |
-| `ExchangeType` | `Topic`; также доступны `Direct`, `Fanout` |
+| `ExchangeType` | Тип подключения (по умолчанию `Topic`); доступны `Direct`, `Fanout` |
 | `BindingKey` | `#`; для Direct этот ключ не является шаблоном |
 | `ErrorQueue` | `<Queue>_error`, если имя не указано |
 | `Endpoint` при сканировании | `{connection}/{consumer.FullName}/{message.FullName}` |
-| `Retry` | Отдельный объект RetryOptions без повторов; null недопустим |
+| `Retry` | Копия политики подключения; по умолчанию без повторов, null недопустим |
+
+Для всех потребителей подключения можно задать `ExchangeType` и `Retry` до их регистрации:
+
+```csharp
+rabbit.Configure(options =>
+{
+    options.Connection = connection;
+    options.ConsumerDefaults.ExchangeType = RabbitMqExchangeType.Direct;
+    options.ConsumerDefaults.Retry.MaxRetries = 2;
+});
+```
+
+`RabbitMqConsumerConfiguration.Configure` получает отдельную копию политики: можно изменить
+её свойства или присвоить `options.Retry = RetryOptions.NoRetry()`.
+Ручной `Exchange(name)` использует тип подключения; явный тип переопределяет его.
+`configureRetry` в ручном `Consume` изменяет копию политики подключения.
 
 Очереди текущей версии фиксированы: durable quorum; входная очередь использует single
 active consumer и `x-delivery-limit=-1`, prefetch равен 1. Exchange durable.
@@ -120,6 +136,8 @@ builder.Services.AddSeedWorkMessaging(bus => bus.AddRabbitMq("rabbit", rabbit =>
     {
         options.Connection = new RabbitMqUriConnectionSettings(new Uri("amqp://guest:guest@localhost:5673/"));
         options.Topology = TopologyMode.CreateMissing;
+        options.ConsumerDefaults.ExchangeType = RabbitMqExchangeType.Topic;
+        options.ConsumerDefaults.Retry.MaxRetries = 2;
     })
     .Exchange("orders.v1")
     .Consume<OrderCreated, OrderConsumer>(
@@ -144,8 +162,8 @@ public sealed class OrderConsumer(ILogger<OrderConsumer> logger) : IConsumer<Ord
 ```
 
 Host сначала готовит топологию и только затем начинает обработку. Ack после успешного
-завершения обработчика выполняет адаптер. При исключении повторы здесь не выполняются:
-сообщение отправляется в `billing.orders.v1_error`.
+завершения обработчика выполняет адаптер. При исключении выполняются два повтора,
+затем сообщение отправляется в `billing.orders.v1_error`.
 
 <a id="publisher"></a>
 ## 2. Отдельный издатель
@@ -275,9 +293,9 @@ public sealed class OrderConsumerConfiguration
         options.Endpoint = "billing-orders";
         options.Queue = "billing.orders.v1";
         options.Exchange = "orders.v1";
-        options.ExchangeType = RabbitMqExchangeType.Topic;
         options.BindingKey = "orders.created";
         options.ErrorQueue = "billing.orders.failed";
+        // Для этого обработчика отключаем два повтора, заданных на подключении.
         options.Retry = RetryOptions.NoRetry();
     }
 }

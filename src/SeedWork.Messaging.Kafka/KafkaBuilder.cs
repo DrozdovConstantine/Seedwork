@@ -13,6 +13,17 @@ public sealed class KafkaOptions
     public KafkaConnectionSettings? Connection { get; set; }
     /// <summary>Проверка существующих topics либо создание недостающих при запуске.</summary>
     public TopologyMode Topology { get; set; } = TopologyMode.ValidateOnly;
+    /// <summary>Значения по умолчанию для потребителей этого подключения.</summary>
+    public KafkaConsumerDefaults ConsumerDefaults { get; } = new();
+}
+
+/// <summary>Общие настройки потребителей одного подключения Kafka.</summary>
+public sealed class KafkaConsumerDefaults
+{
+    /// <summary>Consumer group по умолчанию; может быть переопределена подпиской.</summary>
+    public string? Group { get; set; }
+    /// <summary>Политика повторов по умолчанию; каждый потребитель получает её копию.</summary>
+    public RetryOptions Retry { get; set; } = RetryOptions.NoRetry();
 }
 
 internal sealed record KafkaTopic(string Name, int Partitions, short ReplicationFactor);
@@ -53,16 +64,18 @@ public sealed class KafkaBuilder
         _messaging.AddRoute<T>(route, _name, topic);
         return this;
     }
-    /// <summary>Регистрирует обработку topic в consumer group с собственной политикой повторов.</summary>
+    /// <summary>Регистрирует обработку topic в consumer group с настройками повторов этого подключения.</summary>
     /// <remarks>Экземпляры сервиса используют одну группу для распределения партиций; отдельная группа получает независимый поток.</remarks>
-    public KafkaBuilder Consume<T, TConsumer>(string endpoint, string topic, string group,
+    public KafkaBuilder Consume<T, TConsumer>(string endpoint, string topic, string? group = null,
         Action<RetryOptions>? configureRetry = null) where T : class where TConsumer : class, IConsumer<T>
     {
+        group ??= Options.ConsumerDefaults.Group;
         ArgumentException.ThrowIfNullOrWhiteSpace(group);
         if (_scannedConsumers.Contains((typeof(TConsumer), typeof(T))))
             throw new InvalidOperationException($"Consumer '{typeof(TConsumer).FullName}' for message '{typeof(T).FullName}' is already registered by scanning on '{_name}'.");
         _messaging.AddConsumer<T, TConsumer>(endpoint);
-        var retry = new RetryOptions();
+        var retry = ConsumerDiscovery.CloneRetry(Options.ConsumerDefaults.Retry ??
+            throw new ArgumentException("Kafka consumer default retry policy cannot be null."));
         configureRetry?.Invoke(retry);
         retry.Validate();
         Endpoints.Add(new(endpoint, topic, group,
@@ -86,7 +99,10 @@ public sealed class KafkaBuilder
                 throw new InvalidOperationException($"Consumer '{pair.Consumer.FullName}' for message '{pair.Message.FullName}' is already registered on '{_name}'.");
             var options = new KafkaConsumerOptions
             {
-                Endpoint = ConsumerDiscovery.EndpointName(_name, registration)
+                Endpoint = ConsumerDiscovery.EndpointName(_name, registration),
+                Group = Options.ConsumerDefaults.Group,
+                Retry = ConsumerDiscovery.CloneRetry(Options.ConsumerDefaults.Retry ??
+                    throw new ArgumentException("Kafka consumer default retry policy cannot be null."))
             };
             ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options);
             if (string.IsNullOrWhiteSpace(options.Endpoint) || string.IsNullOrWhiteSpace(options.Topic) || string.IsNullOrWhiteSpace(options.Group))
@@ -103,6 +119,7 @@ public sealed class KafkaBuilder
     }
     internal void Validate()
     {
+        (Options.ConsumerDefaults.Retry ?? throw new ArgumentException("Kafka consumer default retry policy cannot be null.")).Validate();
         // Частичные объявления объединяются после завершения настройки подключения.
         foreach (var group in _consumerTopology.GroupBy(o => o.Topic!))
         {

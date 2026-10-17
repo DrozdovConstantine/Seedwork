@@ -18,6 +18,17 @@ public sealed class RabbitMqOptions
     public Uri? ManagementUri { get; set; }
     /// <summary>Задержка перед восстановлением соединения и всех его консумеров.</summary>
     public TimeSpan ReconnectInterval { get; set; } = TimeSpan.FromSeconds(5);
+    /// <summary>Значения по умолчанию для потребителей этого подключения.</summary>
+    public RabbitMqConsumerDefaults ConsumerDefaults { get; } = new();
+}
+
+/// <summary>Общие настройки потребителей одного подключения RabbitMQ.</summary>
+public sealed class RabbitMqConsumerDefaults
+{
+    /// <summary>Тип exchange по умолчанию; может быть переопределён подпиской.</summary>
+    public RabbitMqExchangeType ExchangeType { get; set; } = RabbitMqExchangeType.Topic;
+    /// <summary>Политика повторов по умолчанию; каждый потребитель получает её копию.</summary>
+    public RetryOptions Retry { get; set; } = RetryOptions.NoRetry();
 }
 
 internal sealed record RabbitRoute(string Exchange, string RoutingKey);
@@ -41,8 +52,10 @@ public sealed class RabbitMqBuilder
 
     /// <summary>Задаёт параметры соединения, проверки топологии и восстановления.</summary>
     public RabbitMqBuilder Configure(Action<RabbitMqOptions> configure) { configure(Options); return this; }
-    /// <summary>Описывает durable exchange типа topic, direct или fanout; существующий должен иметь совместимые параметры.</summary>
-    public RabbitMqBuilder Exchange(string name, RabbitMqExchangeType type = RabbitMqExchangeType.Topic)
+    /// <summary>Описывает durable exchange с типом подключения по умолчанию.</summary>
+    public RabbitMqBuilder Exchange(string name) => Exchange(name, Options.ConsumerDefaults.ExchangeType);
+    /// <summary>Описывает durable exchange указанного типа; существующий должен иметь совместимые параметры.</summary>
+    public RabbitMqBuilder Exchange(string name, RabbitMqExchangeType type)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var brokerType = type switch
@@ -77,7 +90,8 @@ public sealed class RabbitMqBuilder
         if (_scannedConsumers.Contains((typeof(TConsumer), typeof(T))))
             throw new InvalidOperationException($"Consumer '{typeof(TConsumer).FullName}' for message '{typeof(T).FullName}' is already registered by scanning on '{_name}'.");
         _messaging.AddConsumer<T, TConsumer>(endpoint);
-        var retry = new RetryOptions();
+        var retry = ConsumerDiscovery.CloneRetry(Options.ConsumerDefaults.Retry ??
+            throw new ArgumentException("RabbitMQ consumer default retry policy cannot be null."));
         configureRetry?.Invoke(retry);
         retry.Validate();
         Endpoints.Add(new(endpoint, queue, exchange, bindingKey, errorQueue ?? queue + "_error",
@@ -101,7 +115,10 @@ public sealed class RabbitMqBuilder
                 throw new InvalidOperationException($"Consumer '{pair.Consumer.FullName}' for message '{pair.Message.FullName}' is already registered on '{_name}'.");
             var options = new RabbitMqConsumerOptions
             {
-                Endpoint = ConsumerDiscovery.EndpointName(_name, registration)
+                Endpoint = ConsumerDiscovery.EndpointName(_name, registration),
+                ExchangeType = Options.ConsumerDefaults.ExchangeType,
+                Retry = ConsumerDiscovery.CloneRetry(Options.ConsumerDefaults.Retry ??
+                    throw new ArgumentException("RabbitMQ consumer default retry policy cannot be null."))
             };
             ConsumerDiscovery.ApplyConfiguration(registration.Configuration, options);
             if (string.IsNullOrWhiteSpace(options.Endpoint) || string.IsNullOrWhiteSpace(options.Queue) ||
@@ -121,6 +138,7 @@ public sealed class RabbitMqBuilder
 
     internal void Validate()
     {
+        (Options.ConsumerDefaults.Retry ?? throw new ArgumentException("RabbitMQ consumer default retry policy cannot be null.")).Validate();
         ConnectionFactory = (Options.Connection ?? throw new ArgumentException("RabbitMQ connection settings are required."))
             .CreateFactory();
         ConnectionFactory.ClientProvidedName = Options.ClientProvidedName;
