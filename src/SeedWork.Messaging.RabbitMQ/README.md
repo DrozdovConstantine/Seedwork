@@ -1,6 +1,6 @@
 # SeedWork.Messaging.RabbitMQ
 
-Руководство по адаптеру RabbitMQ для .NET 10. Пакет использует RabbitMQ.Client 7.2.2;
+Руководство по адаптеру RabbitMQ для .NET 11. Пакет использует RabbitMQ.Client 7.2.2;
 общие контракты находятся в SeedWork.Messaging и подключаются транзитивно.
 
 По умолчанию exchange имеет тип `RabbitMqExchangeType.Topic`, повторы отключены.
@@ -106,9 +106,9 @@ active consumer и `x-delivery-limit=-1`, prefetch равен 1. Exchange durabl
 ```powershell
 docker compose -p seedwork-messaging -f samples/Messaging/compose.yaml up -d --wait rabbitmq
 
-dotnet new console -n RabbitConsumer -o artifacts/tutorials/RabbitConsumer --framework net10.0
+dotnet new console -n RabbitConsumer -o artifacts/tutorials/RabbitConsumer --framework net11.0
 dotnet add artifacts/tutorials/RabbitConsumer reference src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj
-dotnet add artifacts/tutorials/RabbitConsumer package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
+dotnet add artifacts/tutorials/RabbitConsumer package Microsoft.Extensions.Hosting --version 11.0.0 --no-restore
 dotnet restore artifacts/tutorials/RabbitConsumer
 ```
 
@@ -171,9 +171,9 @@ Host сначала готовит топологию и только затем
 Создайте второй проект из корня репозитория и добавьте ссылку на проект адаптера:
 
 ```powershell
-dotnet new console -n RabbitPublisher -o artifacts/tutorials/RabbitPublisher --framework net10.0
+dotnet new console -n RabbitPublisher -o artifacts/tutorials/RabbitPublisher --framework net11.0
 dotnet add artifacts/tutorials/RabbitPublisher reference src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj
-dotnet add artifacts/tutorials/RabbitPublisher package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
+dotnet add artifacts/tutorials/RabbitPublisher package Microsoft.Extensions.Hosting --version 11.0.0 --no-restore
 dotnet restore artifacts/tutorials/RabbitPublisher
 ```
 

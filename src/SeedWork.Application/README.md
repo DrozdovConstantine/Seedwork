@@ -1,6 +1,6 @@
 # SeedWork.Application
 
-Один NuGet-пакет для прикладных сценариев и настраиваемого pipeline на .NET 10.
+Один NuGet-пакет для прикладных сценариев и настраиваемого pipeline на .NET 11.
 Он содержит runtime-контракты и source generator. Сервис подключает только
 `SeedWork.Application`; генератор во время компиляции создаёт публичный метод
 `AddSeedWorkApplication(params IApplicationPipelineConfiguration[])` в проекте
@@ -291,7 +291,7 @@ HTTP-ответов и обработки исключений остаются 
 
 ## Сборка из исходников
 
-`SeedWork.Application.csproj` собирает runtime для `net10.0` и генератор для
+`SeedWork.Application.csproj` собирает runtime для `net11.0` и генератор для
 `netstandard2.0`. При прямой ссылке на проект в этом репозитории пример и тесты
 подключают его дважды: как runtime и как analyzer. Пользователю NuGet нужна
 одна ссылка на пакет.

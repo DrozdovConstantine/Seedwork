@@ -1,6 +1,6 @@
 # SeedWork.Messaging
 
-Общие контракты публикации и consumers для .NET 10. Подключите адаптеры
+Общие контракты публикации и consumers для .NET 11. Подключите адаптеры
 `SeedWork.Messaging.RabbitMQ` и/или `SeedWork.Messaging.Kafka`.
 
 Подробные руководства с пошаговым запуском и примерами:

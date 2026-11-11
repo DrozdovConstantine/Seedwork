@@ -8,7 +8,7 @@
 В руководствах есть самостоятельные программы и варианты явной регистрации и
 сканирования классов конфигурации, а также разбор топологии, повторов и ошибок.
 
-Требуются .NET 10 и Docker. Из корня репозитория:
+Требуются .NET 11 и Docker. Из корня репозитория:
 
 ```powershell
 docker compose -p seedwork-messaging -f samples/Messaging/compose.yaml --profile telemetry up -d --wait

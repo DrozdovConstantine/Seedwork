@@ -1,6 +1,6 @@
 # SeedWork.Messaging.Kafka
 
-Руководство по адаптеру Kafka для .NET 10. Пакет использует Confluent.Kafka 2.15.1;
+Руководство по адаптеру Kafka для .NET 11. Пакет использует Confluent.Kafka 2.15.1;
 общие контракты SeedWork.Messaging подключаются транзитивно.
 
 Повторы по умолчанию отключены. Первая ошибка обработчика приостанавливает партицию,
@@ -108,9 +108,9 @@ AutoOffsetReset=Earliest и запрет auto-create topic. Новая груп�
 ```powershell
 docker compose -p seedwork-messaging -f samples/Messaging/compose.yaml up -d --wait kafka
 
-dotnet new console -n KafkaConsumer -o artifacts/tutorials/KafkaConsumer --framework net10.0
+dotnet new console -n KafkaConsumer -o artifacts/tutorials/KafkaConsumer --framework net11.0
 dotnet add artifacts/tutorials/KafkaConsumer reference src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj
-dotnet add artifacts/tutorials/KafkaConsumer package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
+dotnet add artifacts/tutorials/KafkaConsumer package Microsoft.Extensions.Hosting --version 11.0.0 --no-restore
 dotnet restore artifacts/tutorials/KafkaConsumer
 ```
 
@@ -173,9 +173,9 @@ Host готовит topic до начала обработки. После ус�
 Создайте второй проект из корня репозитория и добавьте ссылку на проект адаптера:
 
 ```powershell
-dotnet new console -n KafkaPublisher -o artifacts/tutorials/KafkaPublisher --framework net10.0
+dotnet new console -n KafkaPublisher -o artifacts/tutorials/KafkaPublisher --framework net11.0
 dotnet add artifacts/tutorials/KafkaPublisher reference src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj
-dotnet add artifacts/tutorials/KafkaPublisher package Microsoft.Extensions.Hosting --version 10.0.12 --no-restore
+dotnet add artifacts/tutorials/KafkaPublisher package Microsoft.Extensions.Hosting --version 11.0.0 --no-restore
 dotnet restore artifacts/tutorials/KafkaPublisher
 ```
 

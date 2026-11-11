@@ -7,6 +7,19 @@
     <File Path="Plans\PLAN-OBSERVABILITY.md" />
     <File Path="Plans\PLAN-PERSISTENCE-EFCORE.md" />
   </Folder>
+  <Folder Name="/.claude-plugin/">
+    <File Path=".claude-plugin/marketplace.json" />
+  </Folder>
+  <Folder Name="/.seedwork-plugin/">
+    <File Path=".seedwork-plugin/plugin.json" />
+    <File Path=".seedwork-plugin/.claude-plugin/plugin.json" />
+    <File Path=".seedwork-plugin/README.md" />
+  </Folder>
+  <Folder Name="/.seedwork-plugin/skills/">
+    <File Path=".seedwork-plugin/skills/seedwork-application/SKILL.md" />
+    <File Path=".seedwork-plugin/skills/seedwork-domain/SKILL.md" />
+    <File Path=".seedwork-plugin/skills/seedwork-messaging/SKILL.md" />
+  </Folder>
   <Folder Name="/samples/" />
   <Folder Name="/samples/Application/">
     <Project Path="samples/Application/Application.csproj" />
