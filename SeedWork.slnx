@@ -30,6 +30,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/SeedWork.Application/SeedWork.Application.csproj" />
+    <Project Path="src/SeedWork.Application.Generators/SeedWork.Application.Generators.csproj" />
     <Project Path="src/SeedWork.Domain/SeedWork.Domain.csproj" />
     <Project Path="src/SeedWork.Messaging.Kafka/SeedWork.Messaging.Kafka.csproj" />
     <Project Path="src/SeedWork.Messaging.RabbitMQ/SeedWork.Messaging.RabbitMQ.csproj" />

@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../src/SeedWork.Application/SeedWork.Application.csproj" SetTargetFramework="TargetFramework=net11.0" />
-    <ProjectReference Include="../../src/SeedWork.Application/SeedWork.Application.csproj" SetTargetFramework="TargetFramework=netstandard2.0" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../src/SeedWork.Application/SeedWork.Application.csproj" />
+    <ProjectReference Include="../../src/SeedWork.Application.Generators/SeedWork.Application.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
