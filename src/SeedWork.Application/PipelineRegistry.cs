@@ -32,7 +32,7 @@ public sealed class PipelineRegistry
 
     /// <summary>Применяет одну конфигурацию.</summary>
     public PipelineRegistry(IReadOnlyList<PipelineDescriptor> descriptors, IApplicationPipelineConfiguration configuration)
-        : this(descriptors, new[] { configuration ?? throw new ArgumentNullException(nameof(configuration)) }) { }
+        : this(descriptors, [configuration ?? throw new ArgumentNullException(nameof(configuration))]) { }
 
     /// <summary>Применяет конфигурацию, заданную делегатом.</summary>
     public PipelineRegistry(IReadOnlyList<PipelineDescriptor> descriptors, Action<IApplicationPipelineBuilder> configure)

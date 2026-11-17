@@ -1,0 +1,632 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 13 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// ***** Done, took 00:00:00 (0.04 sec)   *****
+// Found 12 benchmarks:
+//   Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+//   Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+//   Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+//   Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+//   Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+//   Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+//   Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+//   Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+//   Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+//   Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+//   Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+//   Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 662500.00 ns, 662.5000 us/op
+
+WorkloadResult   1: 1 op, 662500.00 ns, 662.5000 us/op
+// GC:  0 0 0 72 1
+// Threading:  0 0 1
+
+
+Mean = 662.500 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 662.500 us, Q1 = 662.500 us, Median = 662.500 us, Q3 = 662.500 us, Max = 662.500 us
+IQR = 0.000 us, LowerFence = 662.500 us, UpperFence = 662.500 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 12 (92,3 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 1011400.00 ns, 1.0114 ms/op
+
+WorkloadResult   1: 1 op, 1011400.00 ns, 1.0114 ms/op
+// GC:  0 0 0 608 1
+// Threading:  0 0 1
+
+
+Mean = 1.011 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 1.011 ms, Q1 = 1.011 ms, Median = 1.011 ms, Q3 = 1.011 ms, Max = 1.011 ms
+IQR = 0.000 ms, LowerFence = 1.011 ms, UpperFence = 1.011 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 11 (84,6 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 189200.00 ns, 189.2000 us/op
+
+WorkloadResult   1: 1 op, 189200.00 ns, 189.2000 us/op
+// GC:  0 0 0 5536 1
+// Threading:  0 0 1
+
+
+Mean = 189.200 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 189.200 us, Q1 = 189.200 us, Median = 189.200 us, Q3 = 189.200 us, Max = 189.200 us
+IQR = 0.000 us, LowerFence = 189.200 us, UpperFence = 189.200 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 10 (76,9 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 391800.00 ns, 391.8000 us/op
+
+WorkloadResult   1: 1 op, 391800.00 ns, 391.8000 us/op
+// GC:  0 0 0 408 1
+// Threading:  0 0 1
+
+
+Mean = 391.800 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 391.800 us, Q1 = 391.800 us, Median = 391.800 us, Q3 = 391.800 us, Max = 391.800 us
+IQR = 0.000 us, LowerFence = 391.800 us, UpperFence = 391.800 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 9 (69,2 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 647000.00 ns, 647.0000 us/op
+
+WorkloadResult   1: 1 op, 647000.00 ns, 647.0000 us/op
+// GC:  0 0 0 3424 1
+// Threading:  0 0 1
+
+
+Mean = 647.000 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 647.000 us, Q1 = 647.000 us, Median = 647.000 us, Q3 = 647.000 us, Max = 647.000 us
+IQR = 0.000 us, LowerFence = 647.000 us, UpperFence = 647.000 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 8 (61,5 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 174700.00 ns, 174.7000 us/op
+
+WorkloadResult   1: 1 op, 174700.00 ns, 174.7000 us/op
+// GC:  0 0 0 5960 1
+// Threading:  0 0 1
+
+
+Mean = 174.700 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 174.700 us, Q1 = 174.700 us, Median = 174.700 us, Q3 = 174.700 us, Max = 174.700 us
+IQR = 0.000 us, LowerFence = 174.700 us, UpperFence = 174.700 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 7 (53,8 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 432800.00 ns, 432.8000 us/op
+
+WorkloadResult   1: 1 op, 432800.00 ns, 432.8000 us/op
+// GC:  0 0 0 72 1
+// Threading:  0 0 1
+
+
+Mean = 432.800 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 432.800 us, Q1 = 432.800 us, Median = 432.800 us, Q3 = 432.800 us, Max = 432.800 us
+IQR = 0.000 us, LowerFence = 432.800 us, UpperFence = 432.800 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 6 (46,2 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 834200.00 ns, 834.2000 us/op
+
+WorkloadResult   1: 1 op, 834200.00 ns, 834.2000 us/op
+// GC:  0 0 0 3776 1
+// Threading:  0 0 1
+
+
+Mean = 834.200 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 834.200 us, Q1 = 834.200 us, Median = 834.200 us, Q3 = 834.200 us, Max = 834.200 us
+IQR = 0.000 us, LowerFence = 834.200 us, UpperFence = 834.200 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 5 (38,5 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 163400.00 ns, 163.4000 us/op
+
+WorkloadResult   1: 1 op, 163400.00 ns, 163.4000 us/op
+// GC:  0 0 0 6136 1
+// Threading:  0 0 1
+
+
+Mean = 163.400 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 163.400 us, Q1 = 163.400 us, Median = 163.400 us, Q3 = 163.400 us, Max = 163.400 us
+IQR = 0.000 us, LowerFence = 163.400 us, UpperFence = 163.400 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 4 (30,8 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 468100.00 ns, 468.1000 us/op
+
+WorkloadResult   1: 1 op, 468100.00 ns, 468.1000 us/op
+// GC:  0 0 0 72 1
+// Threading:  0 0 1
+
+
+Mean = 468.100 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 468.100 us, Q1 = 468.100 us, Median = 468.100 us, Q3 = 468.100 us, Max = 468.100 us
+IQR = 0.000 us, LowerFence = 468.100 us, UpperFence = 468.100 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 3 (23,1 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 765200.00 ns, 765.2000 us/op
+
+WorkloadResult   1: 1 op, 765200.00 ns, 765.2000 us/op
+// GC:  0 0 0 8344 1
+// Threading:  0 0 1
+
+
+Mean = 765.200 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 765.200 us, Q1 = 765.200 us, Median = 765.200 us, Q3 = 765.200 us, Max = 765.200 us
+IQR = 0.000 us, LowerFence = 765.200 us, UpperFence = 765.200 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 2 (15,4 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 162500.00 ns, 162.5000 us/op
+
+WorkloadResult   1: 1 op, 162500.00 ns, 162.5000 us/op
+// GC:  0 0 0 6912 1
+// Threading:  0 0 1
+
+
+Mean = 162.500 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 162.500 us, Q1 = 162.500 us, Median = 162.500 us, Q3 = 162.500 us, Max = 162.500 us
+IQR = 0.000 us, LowerFence = 162.500 us, UpperFence = 162.500 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 1 (7,7 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  .perf\results\20261117-191247\Bench-report.csv
+Get-CimInstance : �⪠���� � ����㯥 
+��ப�:1 ����:1
++ Get-CimInstance Win32_Processor -Property Name, NumberOfCores, Number ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : PermissionDenied: (:) [Get-CimInstance], CimException
+    + FullyQualifiedErrorId : HRESULT 0x80041003,Microsoft.Management.Infrastructure.CimCmdlets.GetCimInstanceCommand
+ 
+  .perf\results\20261117-191247\Bench-report-github.md
+  .perf\results\20261117-191247\Bench-report.html
+
+// * Detailed results *
+Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+Runtime = ; GC = 
+Mean = 662.500 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 662.500 us, Q1 = 662.500 us, Median = 662.500 us, Q3 = 662.500 us, Max = 662.500 us
+IQR = 0.000 us, LowerFence = 662.500 us, UpperFence = 662.500 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[662.500 us ; 662.500 us) | @
+---------------------------------------------------
+
+Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+Runtime = ; GC = 
+Mean = 1.011 ms, StdErr = 0.000 ms (0.00%), N = 1, StdDev = 0.000 ms
+Min = 1.011 ms, Q1 = 1.011 ms, Median = 1.011 ms, Q3 = 1.011 ms, Max = 1.011 ms
+IQR = 0.000 ms, LowerFence = 1.011 ms, UpperFence = 1.011 ms
+ConfidenceInterval = [NaN ms; NaN ms] (CI 99.9%), Margin = NaN ms (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[1.011 ms ; 1.011 ms) | @
+---------------------------------------------------
+
+Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=0]
+Runtime = ; GC = 
+Mean = 189.200 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 189.200 us, Q1 = 189.200 us, Median = 189.200 us, Q3 = 189.200 us, Max = 189.200 us
+IQR = 0.000 us, LowerFence = 189.200 us, UpperFence = 189.200 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[189.200 us ; 189.201 us) | @
+---------------------------------------------------
+
+Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+Runtime = ; GC = 
+Mean = 391.800 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 391.800 us, Q1 = 391.800 us, Median = 391.800 us, Q3 = 391.800 us, Max = 391.800 us
+IQR = 0.000 us, LowerFence = 391.800 us, UpperFence = 391.800 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[391.800 us ; 391.800 us) | @
+---------------------------------------------------
+
+Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+Runtime = ; GC = 
+Mean = 647.000 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 647.000 us, Q1 = 647.000 us, Median = 647.000 us, Q3 = 647.000 us, Max = 647.000 us
+IQR = 0.000 us, LowerFence = 647.000 us, UpperFence = 647.000 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[647.000 us ; 647.000 us) | @
+---------------------------------------------------
+
+Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=1]
+Runtime = ; GC = 
+Mean = 174.700 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 174.700 us, Q1 = 174.700 us, Median = 174.700 us, Q3 = 174.700 us, Max = 174.700 us
+IQR = 0.000 us, LowerFence = 174.700 us, UpperFence = 174.700 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[174.700 us ; 174.701 us) | @
+---------------------------------------------------
+
+Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+Runtime = ; GC = 
+Mean = 432.800 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 432.800 us, Q1 = 432.800 us, Median = 432.800 us, Q3 = 432.800 us, Max = 432.800 us
+IQR = 0.000 us, LowerFence = 432.800 us, UpperFence = 432.800 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[432.800 us ; 432.800 us) | @
+---------------------------------------------------
+
+Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+Runtime = ; GC = 
+Mean = 834.200 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 834.200 us, Q1 = 834.200 us, Median = 834.200 us, Q3 = 834.200 us, Max = 834.200 us
+IQR = 0.000 us, LowerFence = 834.200 us, UpperFence = 834.200 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[834.199 us ; 834.201 us) | @
+---------------------------------------------------
+
+Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=3]
+Runtime = ; GC = 
+Mean = 163.400 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 163.400 us, Q1 = 163.400 us, Median = 163.400 us, Q3 = 163.400 us, Max = 163.400 us
+IQR = 0.000 us, LowerFence = 163.400 us, UpperFence = 163.400 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[163.399 us ; 163.400 us) | @
+---------------------------------------------------
+
+Bench.Direct: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+Runtime = ; GC = 
+Mean = 468.100 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 468.100 us, Q1 = 468.100 us, Median = 468.100 us, Q3 = 468.100 us, Max = 468.100 us
+IQR = 0.000 us, LowerFence = 468.100 us, UpperFence = 468.100 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[468.099 us ; 468.101 us) | @
+---------------------------------------------------
+
+Bench.Pipeline: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+Runtime = ; GC = 
+Mean = 765.200 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 765.200 us, Q1 = 765.200 us, Median = 765.200 us, Q3 = 765.200 us, Max = 765.200 us
+IQR = 0.000 us, LowerFence = 765.200 us, UpperFence = 765.200 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[765.199 us ; 765.201 us) | @
+---------------------------------------------------
+
+Bench.Registration: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1) [Count=8]
+Runtime = ; GC = 
+Mean = 162.500 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 162.500 us, Q1 = 162.500 us, Median = 162.500 us, Q3 = 162.500 us, Max = 162.500 us
+IQR = 0.000 us, LowerFence = 162.500 us, UpperFence = 162.500 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[162.500 us ; 162.500 us) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9974)
+Unknown processor
+.NET SDK 11.0.100
+  [Host] : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+
+Job=Dry  Toolchain=InProcessEmitToolchain  IterationCount=1  
+LaunchCount=1  RunStrategy=ColdStart  UnrollFactor=1  
+WarmupCount=1  
+
+| Method       | Count | Mean       | Error | Ratio | Allocated | Alloc Ratio |
+|------------- |------ |-----------:|------:|------:|----------:|------------:|
+| Direct       | 0     |   662.5 us |    NA |  1.00 |         - |          NA |
+| Pipeline     | 0     | 1,011.4 us |    NA |  1.53 |         - |          NA |
+| Registration | 0     |   189.2 us |    NA |  0.29 |         - |          NA |
+|              |       |            |       |       |           |             |
+| Direct       | 1     |   391.8 us |    NA |  1.00 |         - |          NA |
+| Pipeline     | 1     |   647.0 us |    NA |  1.65 |         - |          NA |
+| Registration | 1     |   174.7 us |    NA |  0.45 |         - |          NA |
+|              |       |            |       |       |           |             |
+| Direct       | 3     |   432.8 us |    NA |  1.00 |         - |          NA |
+| Pipeline     | 3     |   834.2 us |    NA |  1.93 |         - |          NA |
+| Registration | 3     |   163.4 us |    NA |  0.38 |         - |          NA |
+|              |       |            |       |       |           |             |
+| Direct       | 8     |   468.1 us |    NA |  1.00 |         - |          NA |
+| Pipeline     | 8     |   765.2 us |    NA |  1.63 |    8344 B |          NA |
+| Registration | 8     |   162.5 us |    NA |  0.35 |         - |          NA |
+
+// * Warnings *
+MinIterationTime
+  Bench.Direct: Dry       -> The minimum observed iteration time is 662.5us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Pipeline: Dry     -> The minimum observed iteration time is 1.011ms which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Registration: Dry -> The minimum observed iteration time is 189.2us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Direct: Dry       -> The minimum observed iteration time is 391.8us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Pipeline: Dry     -> The minimum observed iteration time is 647us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Registration: Dry -> The minimum observed iteration time is 174.7us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Direct: Dry       -> The minimum observed iteration time is 432.8us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Pipeline: Dry     -> The minimum observed iteration time is 834.2us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Registration: Dry -> The minimum observed iteration time is 163.4us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Direct: Dry       -> The minimum observed iteration time is 468.1us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Pipeline: Dry     -> The minimum observed iteration time is 765.2us which is very small. It's recommended to increase it to at least 100ms using more operations.
+  Bench.Registration: Dry -> The minimum observed iteration time is 162.5us which is very small. It's recommended to increase it to at least 100ms using more operations.
+
+// * Legends *
+  Count       : Value of the 'Count' parameter
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 us        : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.18 sec), executed benchmarks: 12
+
+// Found 1 benchmarks:
+//   ShortCircuitBench.ShortCircuit: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+Cannot setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+// **************************
+// Benchmark: ShortCircuitBench.ShortCircuit: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+// *** Execute ***
+// Launch: 1 / 1
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: Job-ZLOTRF(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+
+WorkloadActual   1: 1 op, 467500.00 ns, 467.5000 us/op
+
+WorkloadResult   1: 1 op, 467500.00 ns, 467.5000 us/op
+// GC:  0 0 0 5280 1
+// Threading:  0 0 1
+
+
+Mean = 467.500 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 467.500 us, Q1 = 467.500 us, Median = 467.500 us, Q3 = 467.500 us, Max = 467.500 us
+IQR = 0.000 us, LowerFence = 467.500 us, UpperFence = 467.500 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+
+// ** Remained 0 (0,0 %) benchmark(s) to run. Estimated finish 2026-11-17 19:12 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  .perf\results\20261117-191247\ShortCircuitBench-report.csv
+  .perf\results\20261117-191247\ShortCircuitBench-report-github.md
+  .perf\results\20261117-191247\ShortCircuitBench-report.html
+
+// * Detailed results *
+ShortCircuitBench.ShortCircuit: Dry(Toolchain=InProcessEmitToolchain, IterationCount=1, LaunchCount=1, RunStrategy=ColdStart, UnrollFactor=1, WarmupCount=1)
+Runtime = ; GC = 
+Mean = 467.500 us, StdErr = 0.000 us (0.00%), N = 1, StdDev = 0.000 us
+Min = 467.500 us, Q1 = 467.500 us, Median = 467.500 us, Q3 = 467.500 us, Max = 467.500 us
+IQR = 0.000 us, LowerFence = 467.500 us, UpperFence = 467.500 us
+ConfidenceInterval = [NaN us; NaN us] (CI 99.9%), Margin = NaN us (NaN% of Mean)
+Skewness = NaN, Kurtosis = NaN, MValue = 2
+-------------------- Histogram --------------------
+[467.500 us ; 467.500 us) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9974)
+Unknown processor
+.NET SDK 11.0.100
+  [Host] : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+
+Job=Dry  Toolchain=InProcessEmitToolchain  IterationCount=1  
+LaunchCount=1  RunStrategy=ColdStart  UnrollFactor=1  
+WarmupCount=1  
+
+| Method       | Mean     | Error | Allocated |
+|------------- |---------:|------:|----------:|
+| ShortCircuit | 467.5 us |    NA |         - |
+
+// * Warnings *
+MinIterationTime
+  ShortCircuitBench.ShortCircuit: Dry -> The minimum observed iteration time is 467.5us which is very small. It's recommended to increase it to at least 100ms using more operations.
+
+// * Legends *
+  Mean      : Arithmetic mean of all measurements
+  Error     : Half of 99.9% confidence interval
+  Allocated : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  1 us      : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.01 sec), executed benchmarks: 1
+
+Global total time: 00:00:01 (1.35 sec), executed benchmarks: 13
+// * Artifacts cleanup *
+Artifacts cleanup is finished

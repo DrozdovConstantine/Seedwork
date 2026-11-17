@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SeedWork.Application\SeedWork.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/SeedWork.Application.Generators/SeedWork.Application.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <Reference Include="SeedWork.Application.Generators">
+      <HintPath>../../src/SeedWork.Application.Generators/bin/$(Configuration)/netstandard2.0/SeedWork.Application.Generators.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
+
+

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>GeneratorBench-20261117-191828</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9974)
+Unknown processor
+.NET SDK 11.0.100
+  [Host] : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  Toolchain=InProcessEmitToolchain  IterationCount=3  
+LaunchCount=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method</th><th>Size</th><th>Mean  </th><th>Error </th><th>StdDev</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>Generate</td><td>10/0</td><td>66.74 &mu;s</td><td>4.215 &mu;s</td><td>0.231 &mu;s</td><td>7.3242</td><td>0.8545</td><td>-</td><td>120.27 KB</td>
+</tr><tr><td>Generate</td><td>10/5</td><td>200.48 &mu;s</td><td>8.984 &mu;s</td><td>0.492 &mu;s</td><td>19.5313</td><td>3.9063</td><td>-</td><td>333 KB</td>
+</tr><tr><td>Generate</td><td>100/0</td><td>1,255.38 &mu;s</td><td>664.758 &mu;s</td><td>36.438 &mu;s</td><td>76.1719</td><td>50.7813</td><td>39.0625</td><td>963.56 KB</td>
+</tr><tr><td>Generate</td><td>100/5</td><td>2,501.91 &mu;s</td><td>3,026.434 &mu;s</td><td>165.889 &mu;s</td><td>214.8438</td><td>144.5313</td><td>74.2188</td><td>2996.89 KB</td>
+</tr><tr><td>Generate</td><td>500/10</td><td>19,491.50 &mu;s</td><td>7,267.926 &mu;s</td><td>398.380 &mu;s</td><td>1531.2500</td><td>1031.2500</td><td>312.5000</td><td>24985.68 KB</td>
+</tr></tbody></table>
+</body>
+</html>

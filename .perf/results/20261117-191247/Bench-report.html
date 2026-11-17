@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Bench-20261117-191247</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9974)
+Unknown processor
+.NET SDK 11.0.100
+  [Host] : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=Dry  Toolchain=InProcessEmitToolchain  IterationCount=1  
+LaunchCount=1  RunStrategy=ColdStart  UnrollFactor=1  
+WarmupCount=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method</th><th>Count</th><th>Mean</th><th>Error</th><th>Ratio</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Direct</td><td>0</td><td>662.5 &mu;s</td><td>NA</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Pipeline</td><td>0</td><td>1,011.4 &mu;s</td><td>NA</td><td>1.53</td><td>-</td><td>NA</td>
+</tr><tr><td>Registration</td><td>0</td><td>189.2 &mu;s</td><td>NA</td><td>0.29</td><td>-</td><td>NA</td>
+</tr><tr><td>Direct</td><td>1</td><td>391.8 &mu;s</td><td>NA</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Pipeline</td><td>1</td><td>647.0 &mu;s</td><td>NA</td><td>1.65</td><td>-</td><td>NA</td>
+</tr><tr><td>Registration</td><td>1</td><td>174.7 &mu;s</td><td>NA</td><td>0.45</td><td>-</td><td>NA</td>
+</tr><tr><td>Direct</td><td>3</td><td>432.8 &mu;s</td><td>NA</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Pipeline</td><td>3</td><td>834.2 &mu;s</td><td>NA</td><td>1.93</td><td>-</td><td>NA</td>
+</tr><tr><td>Registration</td><td>3</td><td>163.4 &mu;s</td><td>NA</td><td>0.38</td><td>-</td><td>NA</td>
+</tr><tr><td>Direct</td><td>8</td><td>468.1 &mu;s</td><td>NA</td><td>1.00</td><td>-</td><td>NA</td>
+</tr><tr><td>Pipeline</td><td>8</td><td>765.2 &mu;s</td><td>NA</td><td>1.63</td><td>8344 B</td><td>NA</td>
+</tr><tr><td>Registration</td><td>8</td><td>162.5 &mu;s</td><td>NA</td><td>0.35</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

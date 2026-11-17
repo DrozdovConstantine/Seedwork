@@ -165,6 +165,8 @@ dlldata.c
 
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
+.perf/cli/
+.perf/verify-results/
 
 # .NET
 project.lock.json
@@ -204,6 +206,10 @@ StyleCopReport.xml
 *.tmp_proj
 *_wpftmp.csproj
 *.log
+!.perf/*.log
+!.perf/results/*.log
+!.perf/generator-results/*.log
+.perf/verify.log
 *.tlog
 *.vspscc
 *.vssscc

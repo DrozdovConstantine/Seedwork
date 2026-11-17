@@ -1,4 +1,37 @@
 <Solution>
+  <Folder Name="/.perf/">
+    <File Path=".perf/application-report.md" />
+    <File Path=".perf/dry-inprocess.log" />
+    <File Path=".perf/dry.log" />
+    <File Path=".perf/generator-dry.log" />
+    <File Path=".perf/generator-report.md" />
+    <File Path=".perf/generator-results/20261117-191802/GeneratorBench-report-github.md" />
+    <File Path=".perf/generator-results/20261117-191802/GeneratorBench-report.csv" />
+    <File Path=".perf/generator-results/20261117-191802/GeneratorBench-report.html" />
+    <File Path=".perf/generator-results/20261117-191828/GeneratorBench-report-github.md" />
+    <File Path=".perf/generator-results/20261117-191828/GeneratorBench-report.csv" />
+    <File Path=".perf/generator-results/20261117-191828/GeneratorBench-report.html" />
+    <File Path=".perf/generator-results/GeneratorBench-20261117-191802.log" />
+    <File Path=".perf/generator-results/GeneratorBench-20261117-191828.log" />
+    <File Path=".perf/generator-short.log" />
+    <File Path=".perf/results/20261117-191247/Bench-report-github.md" />
+    <File Path=".perf/results/20261117-191247/Bench-report.csv" />
+    <File Path=".perf/results/20261117-191247/Bench-report.html" />
+    <File Path=".perf/results/20261117-191247/ShortCircuitBench-report-github.md" />
+    <File Path=".perf/results/20261117-191247/ShortCircuitBench-report.csv" />
+    <File Path=".perf/results/20261117-191247/ShortCircuitBench-report.html" />
+    <File Path=".perf/results/20261117-191303/Bench-report-github.md" />
+    <File Path=".perf/results/20261117-191303/Bench-report.csv" />
+    <File Path=".perf/results/20261117-191303/Bench-report.html" />
+    <File Path=".perf/results/20261117-191303/ShortCircuitBench-report-github.md" />
+    <File Path=".perf/results/20261117-191303/ShortCircuitBench-report.csv" />
+    <File Path=".perf/results/20261117-191303/ShortCircuitBench-report.html" />
+    <File Path=".perf/results/BenchmarkRun-20261117-191224.log" />
+    <File Path=".perf/results/BenchmarkRun-20261117-191247.log" />
+    <File Path=".perf/results/BenchmarkRun-20261117-191303.log" />
+    <File Path=".perf/short.log" />
+    <Project Path=".perf/application/application.csproj" />
+  </Folder>
   <Folder Name="/Plans/">
     <File Path="Plans\PLAN-APPLICATION.md" />
     <File Path="Plans\PLAN-DOMAIN.md" />
