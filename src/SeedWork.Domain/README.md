@@ -81,17 +81,96 @@ ID не равны. Сущности одного конкретного тип�
 `DomainEvents` — живая коллекция только для чтения: ранее полученное представление
 отражает последующие добавления и очистку. Для снимка используйте `ToArray()`.
 
+`AddDomainEvent<TEvent>` принимает ссылочные типы событий. Прямая передача
+`struct` или `record struct` не компилируется. Ограничение не предотвращает
+предварительную упаковку структуры в `IDomainEvent`, поэтому используйте для
+событий только классы и `record class`.
+
 Пакет не публикует события и не очищает их автоматически. Вызывающий код определяет
 момент успешной передачи диспетчеру и вызывает `ClearDomainEvents()`; повторная
 очистка допустима. Гарантии доставки и обработка частичной отправки остаются
 ответственностью приложения. Не изменяйте коллекцию во время её перечисления.
 Агрегаты не рассчитаны на одновременный доступ из нескольких потоков.
 
-## Сборка из исходников
+После успешной передачи отдельного события `aggregate.RemoveDomainEvent(domainEvent)`
+удаляет первое вхождение этого экземпляра по ссылке и возвращает `true`; для
+отсутствующего экземпляра возвращается `false`. Равное по значению, но другое
+событие не удаляется. Гарантии доставки остаются ответственностью приложения.
 
-Из корня решения:
+## Бизнес-правила и спецификации
 
-```shell
-dotnet test -c Release
-dotnet pack src/SeedWork.Domain/SeedWork.Domain.csproj -c Release -o artifacts/packages
+Правило реализует `IBusinessRule`: `IsBroken()` сообщает о нарушении, а `Message`
+описывает его. Наследник `Entity<TId>` может вызвать `CheckRule(rule)`; нарушение
+вызывает `DomainException`. Исключение также принимает внутреннюю причину.
+
+Например, заказ разрешает подтверждение только при положительной сумме и
+использует спецификацию, чтобы определить бесплатную доставку. Следующий пример
+можно запустить как отдельный `Program.cs`:
+
+```csharp
+using SeedWork.Domain;
+
+var order = new PurchaseOrder(Guid.NewGuid(), 150m);
+order.Confirm();
+Console.WriteLine(order.HasFreeDelivery); // True
+
+public sealed class PurchaseOrder(Guid id, decimal total) : AggregateRoot<Guid>(id)
+{
+    public decimal Total { get; } = total;
+    public bool IsConfirmed { get; private set; }
+    public bool HasFreeDelivery { get; private set; }
+
+    public void Confirm()
+    {
+        if (IsConfirmed)
+            return;
+
+        // Проверяем инвариант до изменения состояния и добавления события.
+        CheckRule(new OrderTotalMustBePositive(Total));
+        ISpecification<PurchaseOrder> freeDelivery = new FreeDeliverySpecification();
+        HasFreeDelivery = freeDelivery.IsSatisfiedBy(this);
+        IsConfirmed = true;
+        AddDomainEvent(new PurchaseOrderConfirmed(Id, HasFreeDelivery));
+    }
+}
+
+public sealed record OrderTotalMustBePositive(decimal Total) : IBusinessRule
+{
+    public bool IsBroken() => Total <= 0;
+    public string Message => "Order total must be positive.";
+}
+
+public sealed class FreeDeliverySpecification : ISpecification<PurchaseOrder>
+{
+    public bool IsSatisfiedBy(PurchaseOrder order) => order.Total >= 100m;
+}
+
+public sealed record PurchaseOrderConfirmed(Guid OrderId, bool HasFreeDelivery) : IDomainEvent;
 ```
+
+При сумме `0` или меньше `Confirm()` выбросит `DomainException`, не изменив
+состояние заказа и не добавив событие. Порог доставки — бизнес-правило примера,
+которое сервис определяет самостоятельно.
+
+`SpecificationExtensions` предоставляет методы расширения `And`, `Or` и `Not`.
+Например, с `FreeDeliverySpecification` из примера выше можно проверить заказ,
+который ещё не подтверждён и уже подходит для бесплатной доставки:
+
+```csharp
+ISpecification<PurchaseOrder> confirmed = new ConfirmedOrderSpecification();
+ISpecification<PurchaseOrder> freeDelivery = new FreeDeliverySpecification();
+
+ISpecification<PurchaseOrder> eligible = confirmed.Not().And(freeDelivery);
+bool matches = eligible.IsSatisfiedBy(order);
+
+public sealed class ConfirmedOrderSpecification : ISpecification<PurchaseOrder>
+{
+    public bool IsSatisfiedBy(PurchaseOrder order) => order.IsConfirmed;
+}
+```
+
+`And` требует выполнения обоих условий, `Or` — хотя бы одного, а `Not`
+инвертирует результат. `And` и `Or` не проверяют второе условие, если результат
+уже определён первым. Спецификации проверяются в памяти; преобразование в запросы
+к базе данных не поддерживается.
+

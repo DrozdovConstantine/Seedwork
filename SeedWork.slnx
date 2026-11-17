@@ -34,7 +34,6 @@
   </Folder>
   <Folder Name="/Plans/">
     <File Path="Plans\PLAN-APPLICATION.md" />
-    <File Path="Plans\PLAN-DOMAIN.md" />
     <File Path="Plans\PLAN-FILE-STORAGE.md" />
     <File Path="Plans\PLAN-MESSAGING.md" />
     <File Path="Plans\PLAN-OBSERVABILITY.md" />

@@ -6,7 +6,7 @@ SeedWork — набор библиотек .NET для построения се
 
 | Пакет | Назначение |
 | --- | --- |
-| [SeedWork.Domain](src/SeedWork.Domain/README.md) | Сущности, корни агрегатов и доменные события. |
+| [SeedWork.Domain](src/SeedWork.Domain/README.md) | Сущности, корни агрегатов, доменные события, бизнес-правила и спецификации. |
 | [SeedWork.Application](src/SeedWork.Application/README.md) | Прикладные сценарии и настраиваемый pipeline с генерацией регистрации в DI. |
 | [SeedWork.Messaging](src/SeedWork.Messaging/README.md) | Контракты публикации и обработки сообщений и общий pipeline обработки. |
 | [SeedWork.Messaging.RabbitMQ](src/SeedWork.Messaging.RabbitMQ/README.md) | Адаптер обмена сообщениями через RabbitMQ. |

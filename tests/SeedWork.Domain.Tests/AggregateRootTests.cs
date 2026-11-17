@@ -3,6 +3,27 @@ namespace SeedWork.Domain.Tests;
 public sealed class AggregateRootTests
 {
     [Fact]
+    public void RemoveEventUsesReferenceAndRemovesOnlyFirstOccurrence()
+    {
+        var aggregate = new Order(Guid.NewGuid());
+        IAggregateRoot root = aggregate;
+        var first = new OrderChanged(1);
+        var equalButDifferent = new OrderChanged(1);
+        var other = new OrderChanged(2);
+        aggregate.Record(first);
+        aggregate.Record(other);
+        aggregate.Record(first);
+
+        Assert.False(root.RemoveDomainEvent(equalButDifferent));
+        Assert.True(root.RemoveDomainEvent(first));
+        Assert.Collection(root.DomainEvents, item => Assert.Same(other, item), item => Assert.Same(first, item));
+        Assert.True(root.RemoveDomainEvent(first));
+        Assert.False(root.RemoveDomainEvent(first));
+        Assert.Throws<ArgumentNullException>(() => root.RemoveDomainEvent(null!));
+        Assert.Same(other, Assert.Single(root.DomainEvents));
+    }
+
+    [Fact]
     public void EventsPreserveOrderAndDuplicatesInLiveView()
     {
         var aggregate = new Order(Guid.NewGuid());

@@ -18,6 +18,17 @@ public abstract class Entity<TId> : IEquatable<Entity<TId>>
     /// <summary>Возвращает идентификатор, переданный при создании сущности.</summary>
     public TId Id { get; }
 
+    /// <summary>Проверяет бизнес-правило и сообщает о нарушении доменным исключением.</summary>
+    /// <param name="rule">Правило, определённое доменной моделью.</param>
+    /// <exception cref="ArgumentNullException">Правило не задано.</exception>
+    /// <exception cref="DomainException">Правило нарушено.</exception>
+    protected static void CheckRule(IBusinessRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        if (rule.IsBroken())
+            throw new DomainException(rule.Message);
+    }
+
     /// <summary>Сравнивает сущности по правилам равенства с учётом отсутствующих значений.</summary>
     /// <param name="left">Левая сущность для сравнения.</param>
     /// <param name="right">Правая сущность для сравнения.</param>

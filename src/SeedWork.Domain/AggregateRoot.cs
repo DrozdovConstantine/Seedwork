@@ -24,12 +24,25 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEventsView;
 
     /// <summary>Добавляет событие, сохраняя порядок добавления и повторы.</summary>
+    /// <typeparam name="TEvent">Ссылочный тип события.</typeparam>
     /// <param name="domainEvent">Событие для добавления.</param>
+    /// <remarks>Ограничение не исключает структуру, предварительно упакованную в интерфейс.</remarks>
     /// <exception cref="ArgumentNullException">Событие равно <see langword="null" />.</exception>
-    protected void AddDomainEvent(IDomainEvent domainEvent)
+    protected void AddDomainEvent<TEvent>(TEvent domainEvent) where TEvent : class, IDomainEvent
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
         _domainEvents.Add(domainEvent);
+    }
+
+    /// <inheritdoc />
+    public bool RemoveDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        var index = _domainEvents.FindIndex(item => ReferenceEquals(item, domainEvent));
+        if (index < 0)
+            return false;
+        _domainEvents.RemoveAt(index);
+        return true;
     }
 
     /// <inheritdoc />
